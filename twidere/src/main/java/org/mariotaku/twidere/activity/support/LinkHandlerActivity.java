@@ -32,7 +32,6 @@ import android.support.v4.app.NavUtils;
 import android.support.v4.view.ViewCompat;
 import android.support.v7.app.ActionBar;
 import android.support.v7.internal.widget.ActionBarContainer;
-import android.support.v7.internal.widget.NativeActionModeAwareLayout;
 import android.support.v7.widget.ActionMenuView;
 import android.support.v7.widget.Toolbar;
 import android.view.KeyEvent;
@@ -65,6 +64,7 @@ import org.mariotaku.twidere.util.support.ActivitySupport.TaskDescriptionCompat;
 import org.mariotaku.twidere.util.support.ViewSupport;
 import org.mariotaku.twidere.util.support.view.ViewOutlineProviderCompat;
 import org.mariotaku.twidere.view.TintedStatusFrameLayout;
+import org.mariotaku.twidere.view.TintedStatusNativeActionModeAwareLayout;
 
 import static org.mariotaku.twidere.util.Utils.createFragmentForIntent;
 import static org.mariotaku.twidere.util.Utils.matchLinkId;
@@ -75,6 +75,7 @@ public class LinkHandlerActivity extends BaseAppCompatActivity implements System
     private ControlBarShowHideHelper mControlBarShowHideHelper = new ControlBarShowHideHelper(this);
     private MultiSelectEventHandler mMultiSelectHandler;
     private TwidereActionModeForChildListener mTwidereActionModeForChildListener;
+    private TintedStatusFrameLayout mMainContent;
     private final View.OnLayoutChangeListener mLayoutChangeListener = new View.OnLayoutChangeListener() {
 
         private final Rect tempInsets = new Rect();
@@ -90,8 +91,6 @@ public class LinkHandlerActivity extends BaseAppCompatActivity implements System
             }
         }
     };
-
-    private TintedStatusFrameLayout mMainContent;
     private View mActionBarWithOverlay;
     private ActionBarContainer mActionBarContainer;
 
@@ -153,7 +152,7 @@ public class LinkHandlerActivity extends BaseAppCompatActivity implements System
     @Override
     public boolean onOptionsItemSelected(final MenuItem item) {
         switch (item.getItemId()) {
-            case MENU_HOME: {
+            case android.R.id.home: {
                 if (mFinishOnly) {
                     finish();
                 } else {
@@ -166,17 +165,17 @@ public class LinkHandlerActivity extends BaseAppCompatActivity implements System
     }
 
     @Override
-    public boolean handleKeyboardShortcutSingle(@NonNull KeyboardShortcutsHandler handler, int keyCode, @NonNull KeyEvent event) {
+    public boolean handleKeyboardShortcutSingle(@NonNull KeyboardShortcutsHandler handler, int keyCode, @NonNull KeyEvent event, int metaState) {
         if (shouldFragmentTakeAllKeyboardShortcuts()) {
-            return handleFragmentKeyboardShortcutSingle(handler, keyCode, event);
+            return handleFragmentKeyboardShortcutSingle(handler, keyCode, event, metaState);
         }
-        if (handleFragmentKeyboardShortcutSingle(handler, keyCode, event)) return true;
-        final String action = handler.getKeyAction(CONTEXT_TAG_NAVIGATION, keyCode, event);
+        if (handleFragmentKeyboardShortcutSingle(handler, keyCode, event, metaState)) return true;
+        final String action = handler.getKeyAction(CONTEXT_TAG_NAVIGATION, keyCode, event, metaState);
         if (ACTION_NAVIGATION_BACK.equals(action)) {
             onBackPressed();
             return true;
         }
-        return handler.handleKey(this, null, keyCode, event);
+        return handler.handleKey(this, null, keyCode, event, metaState);
     }
 
     private boolean shouldFragmentTakeAllKeyboardShortcuts() {
@@ -185,12 +184,28 @@ public class LinkHandlerActivity extends BaseAppCompatActivity implements System
     }
 
     @Override
-    public boolean handleKeyboardShortcutRepeat(@NonNull KeyboardShortcutsHandler handler, int keyCode, int repeatCount, @NonNull KeyEvent event) {
+    public boolean handleKeyboardShortcutRepeat(@NonNull KeyboardShortcutsHandler handler, int keyCode, int repeatCount, @NonNull KeyEvent event, int metaState) {
         if (shouldFragmentTakeAllKeyboardShortcuts()) {
-            handleFragmentKeyboardShortcutRepeat(handler, keyCode, repeatCount, event);
+            handleFragmentKeyboardShortcutRepeat(handler, keyCode, repeatCount, event, metaState);
         }
-        if (handleFragmentKeyboardShortcutRepeat(handler, keyCode, repeatCount, event)) return true;
-        return super.handleKeyboardShortcutRepeat(handler, keyCode, repeatCount, event);
+        if (handleFragmentKeyboardShortcutRepeat(handler, keyCode, repeatCount, event, metaState))
+            return true;
+        return super.handleKeyboardShortcutRepeat(handler, keyCode, repeatCount, event, metaState);
+    }
+
+    @Override
+    public boolean isKeyboardShortcutHandled(@NonNull KeyboardShortcutsHandler handler, int keyCode, @NonNull KeyEvent event, int metaState) {
+        if (isFragmentKeyboardShortcutHandled(handler, keyCode, event, metaState)) return true;
+        return super.isKeyboardShortcutHandled(handler, keyCode, event, metaState);
+    }
+
+    private boolean isFragmentKeyboardShortcutHandled(final KeyboardShortcutsHandler handler,
+                                                      final int keyCode, @NonNull final KeyEvent event, int metaState) {
+        final Fragment fragment = getCurrentVisibleFragment();
+        if (fragment instanceof KeyboardShortcutCallback) {
+            return ((KeyboardShortcutCallback) fragment).isKeyboardShortcutHandled(handler, keyCode, event, metaState);
+        }
+        return false;
     }
 
     @Override
@@ -206,7 +221,7 @@ public class LinkHandlerActivity extends BaseAppCompatActivity implements System
         setSupportActionBar((Toolbar) findViewById(R.id.action_bar));
 
         mTwidereActionModeForChildListener = new TwidereActionModeForChildListener(this, this, false);
-        final NativeActionModeAwareLayout layout = (NativeActionModeAwareLayout) findViewById(android.R.id.content);
+        final TintedStatusNativeActionModeAwareLayout layout = (TintedStatusNativeActionModeAwareLayout) findViewById(R.id.main_content);
         layout.setActionModeForChildListener(mTwidereActionModeForChildListener);
 
         ThemeUtils.setCompatContentViewOverlay(this, new EmptyDrawable());
@@ -287,20 +302,21 @@ public class LinkHandlerActivity extends BaseAppCompatActivity implements System
     }
 
     private boolean handleFragmentKeyboardShortcutRepeat(KeyboardShortcutsHandler handler, int keyCode,
-                                                         int repeatCount, @NonNull KeyEvent event) {
+                                                         int repeatCount, @NonNull KeyEvent event, int metaState) {
         final Fragment fragment = getCurrentVisibleFragment();
         if (fragment instanceof KeyboardShortcutCallback) {
             return ((KeyboardShortcutCallback) fragment).handleKeyboardShortcutRepeat(handler, keyCode,
-                    repeatCount, event);
+                    repeatCount, event, metaState);
         }
         return false;
     }
 
     private boolean handleFragmentKeyboardShortcutSingle(KeyboardShortcutsHandler handler, int keyCode,
-                                                         @NonNull KeyEvent event) {
+                                                         @NonNull KeyEvent event, int metaState) {
         final Fragment fragment = getCurrentVisibleFragment();
         if (fragment instanceof KeyboardShortcutCallback) {
-            if (((KeyboardShortcutCallback) fragment).handleKeyboardShortcutSingle(handler, keyCode, event)) {
+            if (((KeyboardShortcutCallback) fragment).handleKeyboardShortcutSingle(handler, keyCode,
+                    event, metaState)) {
                 return true;
             }
         }
@@ -360,21 +376,22 @@ public class LinkHandlerActivity extends BaseAppCompatActivity implements System
     private void setStatusBarColor(int linkId, Uri uri) {
         switch (linkId) {
             case LINK_ID_USER: {
+                mMainContent.setDrawShadow(true);
                 mMainContent.setShadowColor(0xA0000000);
-                // Fall through
+                break;
             }
             default: {
                 mMainContent.setDrawShadow(false);
-                mMainContent.setDrawColor(true);
-                mMainContent.setFactor(1);
-                final int alpha = ThemeUtils.isTransparentBackground(getThemeBackgroundOption())
-                        ? ThemeUtils.getActionBarAlpha(getCurrentThemeBackgroundAlpha()) : 0xFF;
-                final int statusBarColor = ThemeUtils.getActionBarColor(this, getCurrentThemeColor(), getCurrentThemeResourceId(), getThemeBackgroundOption());
-                mMainContent.setColor(statusBarColor, alpha);
-                StatusBarProxy.setStatusBarDarkIcon(getWindow(), TwidereColorUtils.getYIQLuminance(statusBarColor) > ThemeUtils.ACCENT_COLOR_THRESHOLD);
                 break;
             }
         }
+        mMainContent.setDrawColor(true);
+        mMainContent.setFactor(1);
+        final int alpha = ThemeUtils.isTransparentBackground(getThemeBackgroundOption())
+                ? ThemeUtils.getActionBarAlpha(getCurrentThemeBackgroundAlpha()) : 0xFF;
+        final int statusBarColor = ThemeUtils.getActionBarColor(this, getCurrentThemeColor(), getCurrentThemeResourceId(), getThemeBackgroundOption());
+        mMainContent.setColor(statusBarColor, alpha);
+        StatusBarProxy.setStatusBarDarkIcon(getWindow(), TwidereColorUtils.getYIQLuminance(statusBarColor) > ThemeUtils.ACCENT_COLOR_THRESHOLD);
     }
 
     private void setTaskInfo(int linkId, Uri uri) {
@@ -488,7 +505,7 @@ public class LinkHandlerActivity extends BaseAppCompatActivity implements System
                 break;
             }
             case LINK_ID_STATUS_FAVORITERS: {
-                setTitle(R.string.users_retweeted_this);
+                setTitle(R.string.users_favorited_this);
                 break;
             }
             case LINK_ID_STATUS_REPLIES: {
@@ -520,6 +537,10 @@ public class LinkHandlerActivity extends BaseAppCompatActivity implements System
                 setTitle(R.string.edit_profile);
                 break;
             }
+            case LINK_ID_SCHEDULED_STATUSES: {
+                setTitle(getString(R.string.scheduled_statuses));
+                break;
+            }
             default: {
                 setTitle(getString(R.string.app_name));
                 break;
@@ -540,14 +561,21 @@ public class LinkHandlerActivity extends BaseAppCompatActivity implements System
     }
 
     @Override
-    public void setControlBarOffset(float offset) {
-        mActionBarContainer.setTranslationY(-Math.round((1 - offset) * getControlBarHeight()));
-        notifyControlBarOffsetChanged();
+    public void setControlBarVisibleAnimate(boolean visible, ControlBarShowHideHelper.ControlBarAnimationListener listener) {
+        // Currently only search page needs this pattern, so we only enable this feature for it.
+        if (!(getCurrentVisibleFragment() instanceof SearchFragment)) return;
+        mControlBarShowHideHelper.setControlBarVisibleAnimate(visible, listener);
     }
 
     @Override
     public float getControlBarOffset() {
         return 1 + mActionBarContainer.getTranslationY() / (float) getControlBarHeight();
+    }
+
+    @Override
+    public void setControlBarOffset(float offset) {
+        mActionBarContainer.setTranslationY(-Math.round((1 - offset) * getControlBarHeight()));
+        notifyControlBarOffsetChanged();
     }
 
     @Override

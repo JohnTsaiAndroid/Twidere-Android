@@ -36,10 +36,17 @@ import org.mariotaku.twidere.model.AccountPreferences;
 import org.mariotaku.twidere.provider.TwidereDataStore.DirectMessages;
 import org.mariotaku.twidere.provider.TwidereDataStore.Mentions;
 import org.mariotaku.twidere.provider.TwidereDataStore.Statuses;
+import org.mariotaku.twidere.receiver.PowerStateReceiver;
 import org.mariotaku.twidere.util.AsyncTwitterWrapper;
 import org.mariotaku.twidere.util.SharedPreferencesWrapper;
+import org.mariotaku.twidere.util.dagger.ApplicationModule;
+import org.mariotaku.twidere.util.dagger.DaggerGeneralComponent;
 
 import java.util.Arrays;
+
+import javax.inject.Inject;
+
+import edu.tsinghua.hotmobi.HotMobiLogger;
 
 import static org.mariotaku.twidere.util.ParseUtils.parseInt;
 import static org.mariotaku.twidere.util.Utils.getAccountIds;
@@ -53,10 +60,12 @@ import static org.mariotaku.twidere.util.Utils.shouldStopAutoRefreshOnBatteryLow
 
 public class RefreshService extends Service implements Constants {
 
-    private SharedPreferencesWrapper mPreferences;
+    @Inject
+    SharedPreferencesWrapper mPreferences;
 
     private AlarmManager mAlarmManager;
-    private AsyncTwitterWrapper mTwitterWrapper;
+    @Inject
+    AsyncTwitterWrapper mTwitterWrapper;
     private PendingIntent mPendingRefreshHomeTimelineIntent, mPendingRefreshMentionsIntent,
             mPendingRefreshDirectMessagesIntent, mPendingRefreshTrendsIntent;
 
@@ -121,6 +130,22 @@ public class RefreshService extends Service implements Constants {
 
     };
 
+    private final BroadcastReceiver mPowerStateReceiver = new BroadcastReceiver() {
+        @Override
+        public void onReceive(Context context, Intent intent) {
+            switch (intent.getAction()) {
+                case Intent.ACTION_BATTERY_CHANGED: {
+                    HotMobiLogger.logPowerBroadcast(context, intent);
+                    break;
+                }
+                default: {
+                    HotMobiLogger.logPowerBroadcast(context);
+                    break;
+                }
+            }
+        }
+    };
+
     @Override
     public IBinder onBind(final Intent intent) {
         return null;
@@ -129,29 +154,38 @@ public class RefreshService extends Service implements Constants {
     @Override
     public void onCreate() {
         super.onCreate();
+        DaggerGeneralComponent.builder().applicationModule(ApplicationModule.get(this)).build().inject(this);
         mAlarmManager = (AlarmManager) getSystemService(ALARM_SERVICE);
         final TwidereApplication app = TwidereApplication.getInstance(this);
-        mTwitterWrapper = app.getTwitterWrapper();
-        mPreferences = SharedPreferencesWrapper.getInstance(app, SHARED_PREFERENCES_NAME, MODE_PRIVATE);
         mPendingRefreshHomeTimelineIntent = PendingIntent.getBroadcast(this, 0, new Intent(
                 BROADCAST_REFRESH_HOME_TIMELINE), 0);
         mPendingRefreshMentionsIntent = PendingIntent.getBroadcast(this, 0, new Intent(BROADCAST_REFRESH_MENTIONS), 0);
         mPendingRefreshDirectMessagesIntent = PendingIntent.getBroadcast(this, 0, new Intent(
                 BROADCAST_REFRESH_DIRECT_MESSAGES), 0);
         mPendingRefreshTrendsIntent = PendingIntent.getBroadcast(this, 0, new Intent(BROADCAST_REFRESH_TRENDS), 0);
-        final IntentFilter filter = new IntentFilter(BROADCAST_NOTIFICATION_DELETED);
-        filter.addAction(BROADCAST_REFRESH_HOME_TIMELINE);
-        filter.addAction(BROADCAST_REFRESH_MENTIONS);
-        filter.addAction(BROADCAST_REFRESH_DIRECT_MESSAGES);
-        filter.addAction(BROADCAST_RESCHEDULE_HOME_TIMELINE_REFRESHING);
-        filter.addAction(BROADCAST_RESCHEDULE_MENTIONS_REFRESHING);
-        filter.addAction(BROADCAST_RESCHEDULE_DIRECT_MESSAGES_REFRESHING);
-        registerReceiver(mStateReceiver, filter);
+        final IntentFilter refreshFilter = new IntentFilter(BROADCAST_NOTIFICATION_DELETED);
+        refreshFilter.addAction(BROADCAST_REFRESH_HOME_TIMELINE);
+        refreshFilter.addAction(BROADCAST_REFRESH_MENTIONS);
+        refreshFilter.addAction(BROADCAST_REFRESH_DIRECT_MESSAGES);
+        refreshFilter.addAction(BROADCAST_RESCHEDULE_HOME_TIMELINE_REFRESHING);
+        refreshFilter.addAction(BROADCAST_RESCHEDULE_MENTIONS_REFRESHING);
+        refreshFilter.addAction(BROADCAST_RESCHEDULE_DIRECT_MESSAGES_REFRESHING);
+        registerReceiver(mStateReceiver, refreshFilter);
+        final IntentFilter batteryFilter = new IntentFilter();
+        batteryFilter.addAction(Intent.ACTION_BATTERY_CHANGED);
+        batteryFilter.addAction(Intent.ACTION_BATTERY_OKAY);
+        batteryFilter.addAction(Intent.ACTION_BATTERY_LOW);
+        batteryFilter.addAction(Intent.ACTION_POWER_CONNECTED);
+        batteryFilter.addAction(Intent.ACTION_POWER_DISCONNECTED);
+        registerReceiver(mPowerStateReceiver, batteryFilter);
+        PowerStateReceiver.setServiceReceiverStarted(true);
         startAutoRefresh();
     }
 
     @Override
     public void onDestroy() {
+        PowerStateReceiver.setServiceReceiverStarted(false);
+        unregisterReceiver(mPowerStateReceiver);
         unregisterReceiver(mStateReceiver);
         if (hasAutoRefreshAccounts(this)) {
             // Auto refresh enabled, so I will try to start service after it was

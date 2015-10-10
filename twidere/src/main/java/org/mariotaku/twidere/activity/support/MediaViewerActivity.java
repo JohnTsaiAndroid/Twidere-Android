@@ -35,11 +35,9 @@ import android.support.v4.app.FragmentTransaction;
 import android.support.v4.app.LoaderManager.LoaderCallbacks;
 import android.support.v4.content.Loader;
 import android.support.v4.util.Pair;
-import android.support.v4.view.MenuItemCompat;
 import android.support.v4.view.ViewPager;
 import android.support.v4.view.ViewPager.OnPageChangeListener;
 import android.support.v7.app.ActionBar;
-import android.support.v7.widget.ShareActionProvider;
 import android.view.KeyEvent;
 import android.view.LayoutInflater;
 import android.view.Menu;
@@ -54,7 +52,6 @@ import android.webkit.MimeTypeMap;
 import android.widget.ImageButton;
 import android.widget.MediaController;
 import android.widget.ProgressBar;
-import android.widget.SeekBar;
 import android.widget.TextView;
 
 import com.davemorrissey.labs.subscaleview.ImageSource;
@@ -68,7 +65,6 @@ import org.apache.commons.lang3.ArrayUtils;
 import org.mariotaku.twidere.Constants;
 import org.mariotaku.twidere.R;
 import org.mariotaku.twidere.adapter.support.SupportFixedFragmentStatePagerAdapter;
-import org.mariotaku.twidere.app.TwidereApplication;
 import org.mariotaku.twidere.fragment.support.BaseSupportFragment;
 import org.mariotaku.twidere.fragment.support.ViewStatusDialogFragment;
 import org.mariotaku.twidere.loader.support.TileImageLoader;
@@ -83,10 +79,10 @@ import org.mariotaku.twidere.util.MenuUtils;
 import org.mariotaku.twidere.util.SaveFileTask;
 import org.mariotaku.twidere.util.ThemeUtils;
 import org.mariotaku.twidere.util.Utils;
-import org.mariotaku.twidere.util.VideoLoader;
 import org.mariotaku.twidere.util.VideoLoader.VideoLoadingListener;
 
 import java.io.File;
+import java.util.concurrent.TimeUnit;
 
 import pl.droidsonroids.gif.GifSupportChecker;
 import pl.droidsonroids.gif.GifTextureView;
@@ -133,7 +129,7 @@ public final class MediaViewerActivity extends BaseAppCompatActivity implements 
         mPagerAdapter = new MediaPagerAdapter(this);
         mViewPager.setAdapter(mPagerAdapter);
         mViewPager.setPageMargin(getResources().getDimensionPixelSize(R.dimen.element_spacing_normal));
-        mViewPager.setOnPageChangeListener(this);
+        mViewPager.addOnPageChangeListener(this);
         final Intent intent = getIntent();
         final long accountId = intent.getLongExtra(EXTRA_ACCOUNT_ID, -1);
         final ParcelableMedia[] media = Utils.newParcelableArray(intent.getParcelableArrayExtra(EXTRA_MEDIA), ParcelableMedia.CREATOR);
@@ -188,8 +184,8 @@ public final class MediaViewerActivity extends BaseAppCompatActivity implements 
     }
 
     @Override
-    public boolean handleKeyboardShortcutSingle(@NonNull KeyboardShortcutsHandler handler, int keyCode, @NonNull KeyEvent event) {
-        final String action = handler.getKeyAction(CONTEXT_TAG_NAVIGATION, keyCode, event);
+    public boolean handleKeyboardShortcutSingle(@NonNull KeyboardShortcutsHandler handler, int keyCode, @NonNull KeyEvent event, int metaState) {
+        final String action = handler.getKeyAction(CONTEXT_TAG_NAVIGATION, keyCode, event, metaState);
         if (action != null) {
             switch (action) {
                 case ACTION_NAVIGATION_PREVIOUS_TAB: {
@@ -214,7 +210,7 @@ public final class MediaViewerActivity extends BaseAppCompatActivity implements 
                 }
             }
         }
-        return super.handleKeyboardShortcutSingle(handler, keyCode, event);
+        return super.handleKeyboardShortcutSingle(handler, keyCode, event, metaState);
     }
 
     @Override
@@ -395,14 +391,14 @@ public final class MediaViewerActivity extends BaseAppCompatActivity implements 
             final boolean hasImage = file != null && file.exists();
             if (!hasImage) return;
             mSaveFileTask = SaveFileTask.saveImage(getActivity(), file);
-            mSaveFileTask.execute();
+            AsyncTaskUtils.executeTask(mSaveFileTask);
         }
 
         @Override
         public void onPrepareOptionsMenu(Menu menu) {
             super.onPrepareOptionsMenu(menu);
             final boolean isLoading = getLoaderManager().hasRunningLoaders();
-            final TaskRunnable<File, Pair<Boolean, Intent>, Menu> checkState = new TaskRunnable<File, Pair<Boolean, Intent>, Menu>() {
+            final TaskRunnable<File, Pair<Boolean, Intent>, Pair<Fragment, Menu>> checkState = new TaskRunnable<File, Pair<Boolean, Intent>, Pair<Fragment, Menu>>() {
                 @Override
                 public Pair<Boolean, Intent> doLongOperation(File file) throws InterruptedException {
                     final boolean hasImage = file != null && file.exists();
@@ -423,19 +419,20 @@ public final class MediaViewerActivity extends BaseAppCompatActivity implements 
                 }
 
                 @Override
-                public void callback(Menu menu, Pair<Boolean, Intent> result) {
+                public void callback(Pair<Fragment, Menu> callback, Pair<Boolean, Intent> result) {
+                    if (callback.first.isDetached() || callback.first.getActivity() == null) return;
+                    final Menu menu = callback.second;
                     final boolean hasImage = result.first;
                     MenuUtils.setMenuItemAvailability(menu, R.id.refresh, !hasImage && !isLoading);
                     MenuUtils.setMenuItemAvailability(menu, R.id.share, hasImage && !isLoading);
                     MenuUtils.setMenuItemAvailability(menu, R.id.save, hasImage && !isLoading);
                     if (!hasImage) return;
                     final MenuItem shareItem = menu.findItem(R.id.share);
-                    final ShareActionProvider shareProvider = (ShareActionProvider) MenuItemCompat.getActionProvider(shareItem);
-                    shareProvider.setShareIntent(result.second);
+                    shareItem.setIntent(Intent.createChooser(result.second, callback.first.getString(R.string.share)));
                 }
             };
             checkState.setParams(mImageFile);
-            checkState.setResultHandler(menu);
+            checkState.setResultHandler(Pair.<Fragment, Menu>create(this, menu));
             AsyncManager.runBackgroundTask(checkState);
         }
 
@@ -443,24 +440,21 @@ public final class MediaViewerActivity extends BaseAppCompatActivity implements 
         @Override
         public void onCreateOptionsMenu(Menu menu, MenuInflater inflater) {
             inflater.inflate(R.menu.menu_media_viewer_image_page, menu);
-            final MenuItem shareItem = menu.findItem(R.id.share);
-            final ShareActionProvider shareProvider = (ShareActionProvider) MenuItemCompat.getActionProvider(shareItem);
-            shareProvider.setShareHistoryFileName(null);
         }
 
 
         @Override
         public boolean onOptionsItemSelected(MenuItem item) {
             switch (item.getItemId()) {
-                case MENU_OPEN_IN_BROWSER: {
+                case R.id.open_in_browser: {
                     openInBrowser();
                     return true;
                 }
-                case MENU_SAVE: {
+                case R.id.save: {
                     saveToGallery();
                     return true;
                 }
-                case MENU_REFRESH: {
+                case R.id.refresh: {
                     loadImage();
                     return true;
                 }
@@ -587,11 +581,9 @@ public final class MediaViewerActivity extends BaseAppCompatActivity implements 
             }
         }
 
-        private VideoLoader mVideoLoader;
-
         private TextureVideoView mVideoView;
         private View mVideoViewOverlay;
-        private SeekBar mVideoViewProgress;
+        private ProgressBar mVideoViewProgress;
         private TextView mDurationLabel, mPositionLabel;
         private ImageButton mPlayPauseButton, mVolumeButton;
         private ProgressWheel mProgressBar;
@@ -603,16 +595,17 @@ public final class MediaViewerActivity extends BaseAppCompatActivity implements 
         private File mVideoFile;
         private Pair<String, String> mVideoUrlAndType;
         private MediaPlayer mMediaPlayer;
+        private int mMediaPlayerError;
 
         public boolean isLoopEnabled() {
             return getArguments().getBoolean(EXTRA_LOOP, false);
         }
 
-        public void loadVideo() {
+        public void loadVideo(boolean forceReload) {
             Pair<String, String> urlAndType = getBestVideoUrlAndType(getMedia());
             if (urlAndType == null) return;
             mVideoUrlAndType = urlAndType;
-            mVideoLoader.loadVideo(urlAndType.first, this);
+            mVideoLoader.loadVideo(urlAndType.first, forceReload, this);
         }
 
         @Override
@@ -637,6 +630,8 @@ public final class MediaViewerActivity extends BaseAppCompatActivity implements 
             mMediaPlayer = null;
             mVideoViewProgress.removeCallbacks(mVideoProgressRunnable);
             mVideoViewProgress.setVisibility(View.GONE);
+            mMediaPlayerError = what;
+            invalidateOptionsMenu();
             return true;
         }
 
@@ -644,7 +639,9 @@ public final class MediaViewerActivity extends BaseAppCompatActivity implements 
         public void onPrepared(MediaPlayer mp) {
             if (getUserVisibleHint()) {
                 mMediaPlayer = mp;
+                mMediaPlayerError = 0;
                 mp.setAudioStreamType(AudioManager.STREAM_MUSIC);
+                mp.setScreenOnWhilePlaying(true);
                 updateVolume();
                 mp.setLooping(isLoopEnabled());
                 mp.start();
@@ -652,6 +649,7 @@ public final class MediaViewerActivity extends BaseAppCompatActivity implements 
                 mVideoViewProgress.post(mVideoProgressRunnable);
                 updatePlayerState();
                 mVideoControl.setVisibility(View.VISIBLE);
+                invalidateOptionsMenu();
             }
         }
 
@@ -681,7 +679,7 @@ public final class MediaViewerActivity extends BaseAppCompatActivity implements 
             super.onBaseViewCreated(view, savedInstanceState);
             mVideoView = (TextureVideoView) view.findViewById(R.id.video_view);
             mVideoViewOverlay = view.findViewById(R.id.video_view_overlay);
-            mVideoViewProgress = (SeekBar) view.findViewById(R.id.video_view_progress);
+            mVideoViewProgress = (ProgressBar) view.findViewById(R.id.video_view_progress);
             mProgressBar = (ProgressWheel) view.findViewById(R.id.load_progress);
             mDurationLabel = (TextView) view.findViewById(R.id.duration_label);
             mPositionLabel = (TextView) view.findViewById(R.id.position_label);
@@ -737,7 +735,6 @@ public final class MediaViewerActivity extends BaseAppCompatActivity implements 
         public void onActivityCreated(@Nullable Bundle savedInstanceState) {
             super.onActivityCreated(savedInstanceState);
             setHasOptionsMenu(true);
-            mVideoLoader = TwidereApplication.getInstance(getActivity()).getVideoLoader();
 
             Handler handler = mVideoViewProgress.getHandler();
             if (handler == null) {
@@ -754,7 +751,7 @@ public final class MediaViewerActivity extends BaseAppCompatActivity implements 
 
             mPlayPauseButton.setOnClickListener(this);
             mVolumeButton.setOnClickListener(this);
-            loadVideo();
+            loadVideo(false);
             updateVolume();
         }
 
@@ -867,7 +864,8 @@ public final class MediaViewerActivity extends BaseAppCompatActivity implements 
                 final int position = mMediaPlayerControl.getCurrentPosition();
                 if (duration <= 0 || position < 0) return;
                 mProgressBar.setProgress(Math.round(1000 * position / (float) duration));
-                final int durationSecs = duration / 1000, positionSecs = position / 1000;
+                final long durationSecs = TimeUnit.SECONDS.convert(duration, TimeUnit.MILLISECONDS),
+                        positionSecs = TimeUnit.SECONDS.convert(position, TimeUnit.MILLISECONDS);
                 mDurationLabel.setText(String.format("%02d:%02d", durationSecs / 60, durationSecs % 60));
                 mPositionLabel.setText(String.format("%02d:%02d", positionSecs / 60, positionSecs % 60));
                 mHandler.postDelayed(this, 16);
@@ -886,13 +884,12 @@ public final class MediaViewerActivity extends BaseAppCompatActivity implements 
             final File file = mVideoFile;
             final Pair<String, String> linkAndType = mVideoUrlAndType;
             final boolean isLoading = linkAndType != null && mVideoLoader.isLoading(linkAndType.first);
-            final boolean hasVideo = file != null && file.exists() && linkAndType != null;
+            final boolean hasVideo = file != null && file.exists() && linkAndType != null && mMediaPlayerError == 0;
             MenuUtils.setMenuItemAvailability(menu, R.id.refresh, !hasVideo && !isLoading);
             MenuUtils.setMenuItemAvailability(menu, R.id.share, hasVideo && !isLoading);
             MenuUtils.setMenuItemAvailability(menu, R.id.save, hasVideo && !isLoading);
             if (!hasVideo) return;
             final MenuItem shareItem = menu.findItem(R.id.share);
-            final ShareActionProvider shareProvider = (ShareActionProvider) MenuItemCompat.getActionProvider(shareItem);
             final Intent intent = new Intent(Intent.ACTION_SEND);
             final Uri fileUri = Uri.fromFile(file);
             intent.setDataAndType(fileUri, linkAndType.second);
@@ -903,7 +900,7 @@ public final class MediaViewerActivity extends BaseAppCompatActivity implements 
                 intent.putExtra(Intent.EXTRA_TEXT, Utils.getStatusShareText(activity, status));
                 intent.putExtra(Intent.EXTRA_SUBJECT, Utils.getStatusShareSubject(activity, status));
             }
-            shareProvider.setShareIntent(intent);
+            shareItem.setIntent(Intent.createChooser(intent, getString(R.string.share)));
         }
 
 
@@ -916,12 +913,12 @@ public final class MediaViewerActivity extends BaseAppCompatActivity implements 
         @Override
         public boolean onOptionsItemSelected(MenuItem item) {
             switch (item.getItemId()) {
-                case MENU_SAVE: {
+                case R.id.save: {
                     saveToGallery();
                     return true;
                 }
-                case MENU_REFRESH: {
-                    loadVideo();
+                case R.id.refresh: {
+                    loadVideo(true);
                     return true;
                 }
             }

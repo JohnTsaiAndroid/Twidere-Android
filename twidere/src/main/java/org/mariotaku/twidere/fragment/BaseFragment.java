@@ -27,12 +27,28 @@ import android.content.IntentFilter;
 import android.content.SharedPreferences;
 
 import org.mariotaku.twidere.Constants;
-import org.mariotaku.twidere.activity.support.BaseAppCompatActivity;
 import org.mariotaku.twidere.app.TwidereApplication;
 import org.mariotaku.twidere.util.AsyncTwitterWrapper;
-import org.mariotaku.twidere.util.MultiSelectManager;
+import org.mariotaku.twidere.util.SharedPreferencesWrapper;
+import org.mariotaku.twidere.util.dagger.ApplicationModule;
+import org.mariotaku.twidere.util.dagger.DaggerGeneralComponent;
+
+import javax.inject.Inject;
 
 public class BaseFragment extends Fragment implements Constants {
+
+    @Inject
+    protected AsyncTwitterWrapper mTwitterWrapper;
+    @Inject
+    protected SharedPreferencesWrapper mPreferences;
+
+
+    @SuppressWarnings("deprecated")
+    @Override
+    public void onAttach(Activity activity) {
+        super.onAttach(activity);
+        DaggerGeneralComponent.builder().applicationModule(ApplicationModule.get(activity)).build().inject(this);
+    }
 
     public TwidereApplication getApplication() {
         final Activity activity = getActivity();
@@ -44,11 +60,6 @@ public class BaseFragment extends Fragment implements Constants {
         final Activity activity = getActivity();
         if (activity != null) return activity.getContentResolver();
         return null;
-    }
-
-    public MultiSelectManager getMultiSelectManager() {
-        final TwidereApplication app = getApplication();
-        return app != null ? app.getMultiSelectManager() : null;
     }
 
     public SharedPreferences getSharedPreferences(final String name, final int mode) {
@@ -63,22 +74,10 @@ public class BaseFragment extends Fragment implements Constants {
         return null;
     }
 
-    public AsyncTwitterWrapper getTwitterWrapper() {
-        final TwidereApplication app = getApplication();
-        return app != null ? app.getTwitterWrapper() : null;
-    }
-
     public void registerReceiver(final BroadcastReceiver receiver, final IntentFilter filter) {
         final Activity activity = getActivity();
         if (activity == null) return;
         activity.registerReceiver(receiver, filter);
-    }
-
-    public void setProgressBarIndeterminateVisibility(final boolean visible) {
-        final Activity activity = getActivity();
-        if (activity instanceof BaseAppCompatActivity) {
-            activity.setProgressBarIndeterminateVisibility(visible);
-        }
     }
 
     public void unregisterReceiver(final BroadcastReceiver receiver) {

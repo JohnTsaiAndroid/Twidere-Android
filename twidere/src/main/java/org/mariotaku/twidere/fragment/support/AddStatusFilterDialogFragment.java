@@ -19,7 +19,6 @@
 
 package org.mariotaku.twidere.fragment.support;
 
-import android.support.v7.app.AlertDialog;
 import android.app.Dialog;
 import android.content.ContentResolver;
 import android.content.ContentValues;
@@ -30,18 +29,17 @@ import android.content.DialogInterface.OnMultiChoiceClickListener;
 import android.os.Bundle;
 import android.support.annotation.NonNull;
 import android.support.v4.app.FragmentManager;
+import android.support.v7.app.AlertDialog;
 
 import com.twitter.Extractor;
 
 import org.mariotaku.twidere.R;
-import org.mariotaku.twidere.constant.SharedPreferenceConstants;
 import org.mariotaku.twidere.model.ParcelableStatus;
 import org.mariotaku.twidere.model.ParcelableUserMention;
 import org.mariotaku.twidere.provider.TwidereDataStore.Filters;
 import org.mariotaku.twidere.util.ContentValuesCreator;
 import org.mariotaku.twidere.util.HtmlEscapeHelper;
 import org.mariotaku.twidere.util.ParseUtils;
-import org.mariotaku.twidere.util.SharedPreferencesWrapper;
 import org.mariotaku.twidere.util.ThemeUtils;
 import org.mariotaku.twidere.util.UserColorNameManager;
 import org.mariotaku.twidere.util.content.ContentResolverUtils;
@@ -120,23 +118,18 @@ public class AddStatusFilterDialogFragment extends BaseSupportDialogFragment imp
         final AlertDialog.Builder builder = new AlertDialog.Builder(wrapped);
         mFilterItems = getFilterItemsInfo();
         final String[] entries = new String[mFilterItems.length];
-        final UserColorNameManager manager = UserColorNameManager.getInstance(getActivity());
-        final SharedPreferencesWrapper prefs = SharedPreferencesWrapper.getInstance(getActivity(),
-                SharedPreferencesWrapper.SHARED_PREFERENCES_NAME, Context.MODE_PRIVATE,
-                SharedPreferenceConstants.class);
-        assert prefs != null;
-        final boolean nameFirst = prefs.getBoolean(KEY_NAME_FIRST);
+        final boolean nameFirst = mPreferences.getBoolean(KEY_NAME_FIRST);
         for (int i = 0, j = entries.length; i < j; i++) {
             final FilterItemInfo info = mFilterItems[i];
             switch (info.type) {
                 case FilterItemInfo.FILTER_TYPE_USER:
-                    entries[i] = getString(R.string.user_filter_name, getName(manager, info.value, nameFirst));
+                    entries[i] = getString(R.string.user_filter_name, getName(mUserColorNameManager, info.value, nameFirst));
                     break;
                 case FilterItemInfo.FILTER_TYPE_KEYWORD:
-                    entries[i] = getString(R.string.keyword_filter_name, getName(manager, info.value, nameFirst));
+                    entries[i] = getString(R.string.keyword_filter_name, getName(mUserColorNameManager, info.value, nameFirst));
                     break;
                 case FilterItemInfo.FILTER_TYPE_SOURCE:
-                    entries[i] = getString(R.string.source_filter_name, getName(manager, info.value, nameFirst));
+                    entries[i] = getString(R.string.source_filter_name, getName(mUserColorNameManager, info.value, nameFirst));
                     break;
             }
         }
@@ -151,14 +144,15 @@ public class AddStatusFilterDialogFragment extends BaseSupportDialogFragment imp
         final Bundle args = getArguments();
         if (args == null || !args.containsKey(EXTRA_STATUS)) return new FilterItemInfo[0];
         final ParcelableStatus status = args.getParcelable(EXTRA_STATUS);
+        if (status == null) return new FilterItemInfo[0];
         final ArrayList<FilterItemInfo> list = new ArrayList<>();
         if (status.is_retweet) {
             list.add(new FilterItemInfo(FilterItemInfo.FILTER_TYPE_USER, new UserItem(status.retweeted_by_user_id,
                     status.retweeted_by_user_name, status.retweeted_by_user_screen_name)));
         }
         if (status.is_quote) {
-            list.add(new FilterItemInfo(FilterItemInfo.FILTER_TYPE_USER, new UserItem(status.quoted_by_user_id,
-                    status.quoted_by_user_name, status.quoted_by_user_screen_name)));
+            list.add(new FilterItemInfo(FilterItemInfo.FILTER_TYPE_USER, new UserItem(status.quoted_user_id,
+                    status.quoted_user_name, status.quoted_user_screen_name)));
         }
         list.add(new FilterItemInfo(FilterItemInfo.FILTER_TYPE_USER, new UserItem(status.user_id,
                 status.user_name, status.user_screen_name)));

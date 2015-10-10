@@ -278,6 +278,10 @@
     <string name="activity_about_me_retweet_multi"><xliff:g id="user">%1$s</xliff:g> and <xliff:g id="other">%2$s</xliff:g> retweeted your tweet.</string>
     <string name="activity_about_me_retweeted_retweet"><xliff:g id="user">%s</xliff:g> retweeted your retweet.</string>
     <string name="activity_about_me_retweeted_retweet_multi"><xliff:g id="user">%1$s</xliff:g> and <xliff:g id="other">%2$s</xliff:g> retweeted your retweet.</string>
+    <string name="activity_about_me_retweeted_mention"><xliff:g id="user">%s</xliff:g> retweeted a tweet mentioned you.</string>
+    <string name="activity_about_me_retweeted_mention_multi"><xliff:g id="user">%s</xliff:g> and <xliff:g id="other">%2$s</xliff:g> retweeted a tweet mentioned you.</string>
+    <string name="activity_about_me_favorited_mention"><xliff:g id="user">%s</xliff:g> favorited a tweet mentioned you.</string>
+    <string name="activity_about_me_favorited_mention_multi"><xliff:g id="user">%s</xliff:g> and <xliff:g id="other">%2$s</xliff:g> favorited a tweet mentioned you.</string>
     <string name="activity_about_me_list_member_added"><xliff:g id="user">%s</xliff:g> added you to list.</string>
     <string name="activity_about_me_list_member_added_with_name"><xliff:g id="user">%1$s</xliff:g> added you to list <xliff:g id="list">%2$s</xliff:g>".</string>
     <string name="activity_about_me_list_member_added_multi"><xliff:g id="user">%1$s</xliff:g> and <xliff:g id="other">%2$s</xliff:g> added you to their lists.</string>
@@ -286,7 +290,9 @@
     <string name="activity_by_friends_follow"><xliff:g id="user">%1$s</xliff:g> is following <xliff:g id="target">%2$s</xliff:g>.</string>
     <string name="activity_by_friends_follow_multi"><xliff:g id="user">%1$s</xliff:g> is following <xliff:g id="target">%2$s</xliff:g> and <xliff:g id="other">%3$s</xliff:g>.</string>
     <string name="activity_by_friends_retweet"><xliff:g id="user">%1$s</xliff:g> retweeted <xliff:g id="target">%2$s</xliff:g>\'s tweet.</string>
+    <string name="activity_by_friends_retweet_multi"><xliff:g id="user">%1$s</xliff:g> retweeted <xliff:g id="target">%2$s</xliff:g> and <xliff:g id="other">%3$s</xliff:g>\'s tweet.</string>
     <string name="activity_by_friends_list_member_added"><xliff:g id="user">%1$s</xliff:g> added <xliff:g id="target">%2$s</xliff:g> to list.</string>
+    <string name="activity_by_friends_list_member_added_multi"><xliff:g id="user">%1$s</xliff:g> added <xliff:g id="target">%2$s</xliff:g> and <xliff:g id="other">%1$s</xliff:g> to list.</string>
     <string name="activity_by_friends_list_created"><xliff:g id="user">%1$s</xliff:g> created list <xliff:g id="target">%2$s</xliff:g>.</string>
     <string name="activity_by_friends_list_created_multi"><xliff:g id="user">%1$s</xliff:g> created list <xliff:g id="target">%2$s</xliff:g> and <xliff:g id="other">%1$s</xliff:g>.</string>
     <string name="status_not_updated">Tweet not sent.</string>
@@ -380,7 +386,7 @@
     <string name="preview_images">Preview images</string>
     <string name="preload_wifi_only">Preload using Wi-Fi only</string>
     <string name="sign_in_method_introduction_title">How does it work?</string>
-    <string name="sign_in_method_introduction">Most clients like twicca open a browser asking you to type username and password, and then take you back to the clients. Sometimes this can become very inconvenient.\n\nTwidere uses simpler steps to sign in, without opening the browser. Don\'t worry about your password, Twidere will never store it, it\'s totally safe!</string>
+    <string name="sign_in_method_introduction">Most clients opens a webpage to authorize to Twitter, this could be inconvenient when using custom API, or on slow network. Twidere simulates a normal browser to help sign in to Twitter. Don\'t worry, your password will never be stored nor leaked.</string>
     <string name="quote_protected_status_notice">It\'s not recommended to quote protected tweets.</string>
     <string name="edit_draft">Edit draft</string>
     <string name="profile_image">Profile image</string>
@@ -535,7 +541,7 @@
     <string name="theme_background_solid">Pure white/black</string>
     <string name="theme_background_transparent">Transparent</string>
     <string name="theme_dark_actionbar">Dark ActionBar</string>
-    <string name="wizard_hint_compose_select_account">Click this icon to select account when writing a tweet.</string>
+    <string name="wizard_hint_compose_select_account">Click profile image to select account when writing a tweet.</string>
     <string name="wizard_hint_quote_format">Set your favorite quote format in &quot;Settings&quot; - &quot;Content &amp; Storage&quot;</string>
     <string name="wizard_hint_filters">You can hide unwanted tweets from timeline and notification by using &quot;Filters&quot;.</string>
     <string name="view_replies">View Replies</string>
@@ -646,7 +652,11 @@
     <string name="state_blocking">Blocking</string>
     <string name="load_more">Load more</string>
     <string name="photo">Photo</string>
+    <string name="camera">Camera</string>
     <string name="gallery">Gallery</string>
+    <string name="source_camera">Camera</string>
+    <string name="source_gallery">Gallery</string>
+    <string name="source_clipboard">Clipboard</string>
     <string name="remove">Remove</string>
     <string name="load_media">Load media</string>
     <string name="profile_text_color">Text color</string>
@@ -683,12 +693,9 @@
     <string name="getting_location">Getting location</string>
     <string name="save_to_gallery">Save to gallery</string>
     <string name="usage_statistics">Usage statistics</string>
-    <string name="research_ucdavis_earlybird">UCDavis Earlybird</string>
-    <string name="research_tsinghua_spice">Tsinghua Spice</string>
+    <string name="research_hot_mobile">Data-Driven Mobile Network Research</string>
     <string name="unknown_location">Unknown location</string>
     <string name="ellipsis">…</string>
-    <string name="designed_by">Designed by</string>
-    <string name="designer_name">Uucky Lee</string>
     <string name="import_export_settings">Import/Export settings</string>
     <string name="usage_statistics_header_summary">Twidere took part in some research project, join these projects will make Twidere and some other application better.</string>
     <string name="no_tab">No tab</string>
@@ -747,7 +754,7 @@
     <string name="delete_conversation">Delete conversation</string>
     <string name="delete_conversation_confirm_message">Delete all messages of this conversation?</string>
     <string name="name_first_summary_on">Display name first</string>
-    <string name="name_first_summary_off">Display @screenname first</string>
+    <string name="name_first_summary_off">Display \@screenname first</string>
     <string name="comment_hint">Comment…</string>
     <string name="comment">Comment</string>
     <string name="enable_retweets">Enable retweets</string>
@@ -759,4 +766,25 @@
     <string name="streaming">Streaming</string>
     <string name="enable_streaming">Enable streaming</string>
     <string name="dark_theme">Dark theme</string>
+    <string name="wizard_hint_title_location_requirement">Location permission</string>
+    <string name="wizard_hint_summary_location_requirement">Twidere needs location permission when you send tweet containing location.</string>
+    <string name="wizard_hint_title_storage_requirement">Storage permission</string>
+    <string name="wizard_hint_summary_storage_requirement">Twidere needs storage permission when you access documents.</string>
+    <string name="scrapyard">Scrapyard</string>
+    <string name="crop_image">Crop image</string>
+    <string name="usage_label_sent">Sent</string>
+    <string name="usage_label_received">Received</string>
+    <string name="this_month">This month</string>
+    <string name="media_preload">Media preload</string>
+    <string name="on_mobile_network">On mobile network</string>
+    <string name="set_consumer_key_secret_message">Twidere is reaching token limit, you will have to create an app at https://apps.twitter.com/ and paste consumer key and secret below.\nIf you continue using default key, you may not be able to sign in.</string>
+    <string name="send_at">Send at</string>
+    <string name="scheduled_statuses">Scheduled tweets</string>
+    <string name="report_usage_statistics_now">Report usage statistics now</string>
+    <string name="cache_size_limit">Cache size limit</string>
+    <string name="bug_reports">Bug reports</string>
+    <string name="invalid_consumer_key">Invalid consumer key</string>
+    <string name="invalid_consumer_secret">Invalid consumer secret</string>
+    <string name="page_up">Page up</string>
+    <string name="page_down">Page down</string>
 </resources>

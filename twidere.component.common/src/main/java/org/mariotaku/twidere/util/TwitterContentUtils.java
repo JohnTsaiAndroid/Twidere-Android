@@ -21,6 +21,8 @@ package org.mariotaku.twidere.util;
 
 import android.content.Context;
 import android.support.annotation.NonNull;
+import android.support.annotation.Nullable;
+import android.text.TextUtils;
 
 import org.mariotaku.twidere.api.twitter.Twitter;
 import org.mariotaku.twidere.api.twitter.TwitterException;
@@ -51,6 +53,7 @@ import static org.mariotaku.twidere.util.HtmlEscapeHelper.toPlainText;
 public class TwitterContentUtils {
 
     public static final int TWITTER_BULK_QUERY_COUNT = 100;
+    private static final Pattern PATTERN_TWITTER_STATUS_LINK = Pattern.compile("https?://twitter\\.com/(?:#!/)?(\\w+)/status(es)?/(\\d+)");
 
     public static String formatDirectMessageText(final DirectMessage message) {
         if (message == null) return null;
@@ -169,8 +172,6 @@ public class TwitterContentUtils {
         return str.replace("&amp;", "&").replace("&lt;", "<").replace("&gt;", ">");
     }
 
-    private static final Pattern PATTERN_TWITTER_STATUS_LINK = Pattern.compile("https?://twitter\\.com/(?:#!/)?(\\w+)/status(es)?/(\\d+)");
-
     public static <T extends List<Status>> T getStatusesWithQuoteData(Twitter twitter, @NonNull T list) throws TwitterException {
         LongSparseMap<Status> quotes = new LongSparseMap<>();
         // Phase 1: collect all statuses contains a status link, and put it in the map
@@ -182,7 +183,10 @@ public class TwitterContentUtils {
             for (int i = entities.length - 1; i >= 0; i--) {
                 final Matcher m = PATTERN_TWITTER_STATUS_LINK.matcher(entities[i].getExpandedUrl());
                 if (!m.matches()) continue;
-                quotes.put(Long.parseLong(m.group(3)), status);
+                final long quoteId = ParseUtils.parseLong(m.group(3), -1);
+                if (quoteId > 0) {
+                    quotes.put(quoteId, status);
+                }
                 break;
             }
         }
@@ -206,13 +210,22 @@ public class TwitterContentUtils {
         return list;
     }
 
+    public static String getMediaUrl(MediaEntity entity) {
+        return TextUtils.isEmpty(entity.getMediaUrlHttps()) ? entity.getMediaUrl() : entity.getMediaUrlHttps();
+    }
+
+    public static String getProfileImageUrl(@Nullable User user) {
+        if (user == null) return null;
+        return TextUtils.isEmpty(user.getProfileImageUrlHttps()) ? user.getProfileImageUrl() : user.getProfileImageUrlHttps();
+    }
+
     private static void parseEntities(final HtmlBuilder builder, final EntitySupport entities) {
         // Format media.
         final MediaEntity[] mediaEntities = entities.getMediaEntities();
         if (mediaEntities != null) {
             for (final MediaEntity mediaEntity : mediaEntities) {
                 final int start = mediaEntity.getStart(), end = mediaEntity.getEnd();
-                final String mediaUrl = mediaEntity.getMediaUrl();
+                final String mediaUrl = TwitterContentUtils.getMediaUrl(mediaEntity);
                 if (mediaUrl != null && start >= 0 && end >= 0) {
                     builder.addLink(mediaUrl, mediaEntity.getDisplayUrl(), start, end);
                 }
@@ -229,4 +242,5 @@ public class TwitterContentUtils {
             }
         }
     }
+
 }

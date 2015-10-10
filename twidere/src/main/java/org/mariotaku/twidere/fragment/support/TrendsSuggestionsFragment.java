@@ -32,14 +32,11 @@ import android.view.View;
 import android.widget.AdapterView;
 import android.widget.ListView;
 
-import com.squareup.otto.Bus;
 import com.squareup.otto.Subscribe;
 
 import org.mariotaku.twidere.adapter.TrendsAdapter;
-import org.mariotaku.twidere.app.TwidereApplication;
 import org.mariotaku.twidere.provider.TwidereDataStore.CachedTrends;
 import org.mariotaku.twidere.util.AsyncTwitterWrapper;
-import org.mariotaku.twidere.util.MultiSelectManager;
 import org.mariotaku.twidere.util.message.TaskStateChangedEvent;
 
 import static org.mariotaku.twidere.util.Utils.getDefaultAccountId;
@@ -49,7 +46,6 @@ import static org.mariotaku.twidere.util.Utils.openTweetSearch;
 public class TrendsSuggestionsFragment extends AbsContentListViewFragment<TrendsAdapter>
         implements LoaderCallbacks<Cursor>, AdapterView.OnItemClickListener {
 
-    private MultiSelectManager mMultiSelectManager;
     private SharedPreferences mPreferences;
 
 
@@ -59,7 +55,6 @@ public class TrendsSuggestionsFragment extends AbsContentListViewFragment<Trends
     public void onActivityCreated(final Bundle savedInstanceState) {
         mPreferences = getSharedPreferences(SHARED_PREFERENCES_NAME, Context.MODE_PRIVATE);
         super.onActivityCreated(savedInstanceState);
-        mMultiSelectManager = getMultiSelectManager();
         mAccountId = getDefaultAccountId(getActivity());
         getListView().setOnItemClickListener(this);
         getLoaderManager().initLoader(0, null, this);
@@ -109,7 +104,7 @@ public class TrendsSuggestionsFragment extends AbsContentListViewFragment<Trends
     @Override
     public void onRefresh() {
         if (isRefreshing()) return;
-        final AsyncTwitterWrapper twitter = getTwitterWrapper();
+        final AsyncTwitterWrapper twitter = mTwitterWrapper;
         if (twitter == null) return;
         twitter.getLocalTrendsAsync(mAccountId, mPreferences.getInt(KEY_LOCAL_TRENDS_WOEID, 1));
     }
@@ -123,16 +118,12 @@ public class TrendsSuggestionsFragment extends AbsContentListViewFragment<Trends
     public void onStart() {
         super.onStart();
         getLoaderManager().restartLoader(0, null, this);
-        final Bus bus = TwidereApplication.getInstance(getActivity()).getMessageBus();
-        assert bus != null;
-        bus.register(this);
+        mBus.register(this);
     }
 
     @Override
     public void onStop() {
-        final Bus bus = TwidereApplication.getInstance(getActivity()).getMessageBus();
-        assert bus != null;
-        bus.unregister(this);
+        mBus.unregister(this);
         super.onStop();
     }
 
@@ -142,7 +133,7 @@ public class TrendsSuggestionsFragment extends AbsContentListViewFragment<Trends
     }
 
     protected void updateRefreshState() {
-        final AsyncTwitterWrapper twitter = getTwitterWrapper();
+        final AsyncTwitterWrapper twitter = mTwitterWrapper;
         if (twitter == null || !getUserVisibleHint()) return;
         setRefreshing(twitter.isLocalTrendsRefreshing());
     }

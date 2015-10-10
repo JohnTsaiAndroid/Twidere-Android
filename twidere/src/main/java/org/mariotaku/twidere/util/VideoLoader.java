@@ -27,6 +27,7 @@ import com.nostra13.universalimageloader.core.download.ImageDownloader;
 import com.nostra13.universalimageloader.utils.IoUtils;
 import com.squareup.otto.Bus;
 
+import org.mariotaku.restfu.http.RestHttpClient;
 import org.mariotaku.twidere.app.TwidereApplication;
 import org.mariotaku.twidere.model.SingleResponse;
 import org.mariotaku.twidere.task.ManagedAsyncTask;
@@ -49,13 +50,13 @@ public class VideoLoader {
     private final AsyncTaskManager mTaskManager;
     private final Bus mBus;
 
-    public VideoLoader(Context context) {
+    public VideoLoader(Context context, RestHttpClient client, AsyncTaskManager manager, Bus bus) {
         final TwidereApplication app = TwidereApplication.getInstance(context);
         mContext = context;
         mDiskCache = app.getDiskCache();
-        mImageDownloader = new TwidereImageDownloader(context, false, false);
-        mTaskManager = app.getAsyncTaskManager();
-        mBus = app.getMessageBus();
+        mImageDownloader = new TwidereImageDownloader(context, client, false);
+        mTaskManager = manager;
+        mBus = bus;
     }
 
     public File getCachedVideoFile(final String url, boolean loadIfNotFound) {
@@ -75,10 +76,14 @@ public class VideoLoader {
 
 
     public int loadVideo(String uri, VideoLoadingListener listener) {
+        return loadVideo(uri, false, listener);
+    }
+
+    public int loadVideo(String uri, boolean forceReload, VideoLoadingListener listener) {
         if (mTaskManager.hasRunningTasksForTag(uri)) {
             return 0;
         }
-        return mTaskManager.add(new PreLoadVideoTask(mContext, this, listener, uri), true);
+        return mTaskManager.add(new PreLoadVideoTask(mContext, this, listener, uri, forceReload), true);
     }
 
     private void notifyTaskFinish(String uri, boolean succeeded) {
@@ -103,12 +108,16 @@ public class VideoLoader {
         private final VideoLoader mPreLoader;
         private final VideoLoadingListener mListener;
         private final String mUri;
+        private final boolean mForceReload;
 
-        private PreLoadVideoTask(final Context context, final VideoLoader preLoader, VideoLoadingListener listener, final String uri) {
-            super(context, preLoader.mTaskManager, uri);
+        private PreLoadVideoTask(final Context context, final VideoLoader preLoader,
+                                 final VideoLoadingListener listener, final String uri,
+                                 boolean forceReload) {
+            super(context, uri);
             mPreLoader = preLoader;
             mListener = listener;
             mUri = uri;
+            mForceReload = forceReload;
         }
 
         @Override
@@ -120,18 +129,22 @@ public class VideoLoader {
 
         @Override
         protected SingleResponse<File> doInBackground(Object... params) {
-            final File file = mPreLoader.mDiskCache.get(mUri);
-            if (file.isFile() && file.length() > 0) return SingleResponse.getInstance(file);
+            final DiskCache diskCache = mPreLoader.mDiskCache;
+            final File cachedFile = diskCache.get(mUri);
+            if (!mForceReload && cachedFile != null && cachedFile.isFile() && cachedFile.length() > 0)
+                return SingleResponse.getInstance(cachedFile);
+            InputStream is = null;
             try {
-                final InputStream is = mPreLoader.mImageDownloader.getStream(mUri, null);
-                mPreLoader.mDiskCache.save(mUri, is, this);
-                IoUtils.closeSilently(is);
+                is = mPreLoader.mImageDownloader.getStream(mUri, null);
+                diskCache.save(mUri, is, this);
+                return SingleResponse.getInstance(diskCache.get(mUri));
             } catch (IOException e) {
-                mPreLoader.mDiskCache.remove(mUri);
+                diskCache.remove(mUri);
                 Log.w(LOGTAG, e);
                 return SingleResponse.getInstance(e);
+            } finally {
+                IoUtils.closeSilently(is);
             }
-            return SingleResponse.getInstance(file);
         }
 
         @Override

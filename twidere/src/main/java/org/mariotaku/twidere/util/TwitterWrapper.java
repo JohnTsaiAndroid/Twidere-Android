@@ -29,6 +29,7 @@ import org.mariotaku.restfu.http.mime.FileTypedData;
 import org.mariotaku.twidere.Constants;
 import org.mariotaku.twidere.api.twitter.Twitter;
 import org.mariotaku.twidere.api.twitter.TwitterException;
+import org.mariotaku.twidere.api.twitter.model.Activity;
 import org.mariotaku.twidere.api.twitter.model.DirectMessage;
 import org.mariotaku.twidere.api.twitter.model.Paging;
 import org.mariotaku.twidere.api.twitter.model.ResponseList;
@@ -127,6 +128,10 @@ public class TwitterWrapper implements Constants {
             throw new IllegalArgumentException();
         final Paging paging = new Paging();
         paging.count(1);
+        for (final User user : twitter.searchUsers(searchScreenName, paging)) {
+            if (user.getId() == id || searchScreenName.equalsIgnoreCase(user.getScreenName()))
+                return user;
+        }
         if (id != -1) {
             final ResponseList<Status> timeline = twitter.getUserTimeline(id, paging);
             for (final Status status : timeline) {
@@ -140,10 +145,6 @@ public class TwitterWrapper implements Constants {
                 if (searchScreenName.equalsIgnoreCase(user.getScreenName()))
                     return user;
             }
-        }
-        for (final User user : twitter.searchUsers(searchScreenName, paging)) {
-            if (user.getId() == id || searchScreenName.equalsIgnoreCase(user.getScreenName()))
-                return user;
         }
         throw new TwitterException("can't find user");
     }
@@ -253,6 +254,31 @@ public class TwitterWrapper implements Constants {
         }
 
         StatusListResponse(final long accountId, final long maxId, final long sinceId, final List<Status> list,
+                           final boolean truncated, final Exception exception) {
+            super(accountId, maxId, sinceId, list, exception);
+            this.truncated = truncated;
+        }
+
+    }
+
+    public static final class ActivityListResponse extends TwitterListResponse<Activity> {
+
+        public final boolean truncated;
+
+        public ActivityListResponse(final long accountId, final Exception exception) {
+            this(accountId, -1, -1, null, false, exception);
+        }
+
+        public ActivityListResponse(final long accountId, final List<Activity> list) {
+            this(accountId, -1, -1, list, false, null);
+        }
+
+        public ActivityListResponse(final long accountId, final long maxId, final long sinceId,
+                                  final List<Activity> list, final boolean truncated) {
+            this(accountId, maxId, sinceId, list, truncated, null);
+        }
+
+        ActivityListResponse(final long accountId, final long maxId, final long sinceId, final List<Activity> list,
                            final boolean truncated, final Exception exception) {
             super(accountId, maxId, sinceId, list, exception);
             this.truncated = truncated;

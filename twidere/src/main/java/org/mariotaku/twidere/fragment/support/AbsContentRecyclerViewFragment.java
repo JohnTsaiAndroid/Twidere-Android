@@ -19,7 +19,6 @@
 
 package org.mariotaku.twidere.fragment.support;
 
-import android.app.Activity;
 import android.content.Context;
 import android.graphics.Rect;
 import android.os.Bundle;
@@ -42,8 +41,8 @@ import android.widget.TextView;
 import org.mariotaku.twidere.R;
 import org.mariotaku.twidere.activity.iface.IControlBarActivity;
 import org.mariotaku.twidere.activity.iface.IControlBarActivity.ControlBarOffsetListener;
+import org.mariotaku.twidere.adapter.LoadMoreSupportAdapter;
 import org.mariotaku.twidere.adapter.decorator.DividerItemDecoration;
-import org.mariotaku.twidere.adapter.iface.IContentCardAdapter;
 import org.mariotaku.twidere.fragment.iface.RefreshScrollTopInterface;
 import org.mariotaku.twidere.util.ContentListScrollListener;
 import org.mariotaku.twidere.util.ContentListScrollListener.ContentListSupport;
@@ -52,13 +51,16 @@ import org.mariotaku.twidere.util.ThemeUtils;
 import org.mariotaku.twidere.util.TwidereColorUtils;
 import org.mariotaku.twidere.util.Utils;
 import org.mariotaku.twidere.view.HeaderDrawerLayout.DrawerCallback;
+import org.mariotaku.twidere.view.iface.IExtendedView;
+import org.mariotaku.twidere.view.themed.AccentSwipeRefreshLayout;
 
 /**
+ * Comment, blah, blah, blah.
  * Created by mariotaku on 15/4/16.
  */
-public abstract class AbsContentRecyclerViewFragment<A extends IContentCardAdapter> extends BaseSupportFragment
+public abstract class AbsContentRecyclerViewFragment<A extends LoadMoreSupportAdapter> extends BaseSupportFragment
         implements OnRefreshListener, DrawerCallback, RefreshScrollTopInterface, ControlBarOffsetListener,
-        ContentListSupport {
+        ContentListSupport, IControlBarActivity.ControlBarShowHideHelper.ControlBarAnimationListener {
 
     private View mProgressContainer;
     private SwipeRefreshLayout mSwipeRefreshLayout;
@@ -128,10 +130,15 @@ public abstract class AbsContentRecyclerViewFragment<A extends IContentCardAdapt
     }
 
     @Override
+    public void onControlBarVisibleAnimationFinish(boolean visible) {
+        updateRefreshProgressOffset();
+    }
+
+    @Override
     public void setControlVisible(boolean visible) {
         final FragmentActivity activity = getActivity();
         if (activity instanceof IControlBarActivity) {
-            ((IControlBarActivity) activity).setControlBarVisibleAnimate(visible);
+            ((IControlBarActivity) activity).setControlBarVisibleAnimate(visible, this);
         }
     }
 
@@ -178,10 +185,10 @@ public abstract class AbsContentRecyclerViewFragment<A extends IContentCardAdapt
     }
 
     @Override
-    public void onAttach(Activity activity) {
-        super.onAttach(activity);
-        if (activity instanceof IControlBarActivity) {
-            ((IControlBarActivity) activity).registerControlBarOffsetListener(this);
+    public void onAttach(Context context) {
+        super.onAttach(context);
+        if (context instanceof IControlBarActivity) {
+            ((IControlBarActivity) context).registerControlBarOffsetListener(this);
         }
     }
 
@@ -209,20 +216,33 @@ public abstract class AbsContentRecyclerViewFragment<A extends IContentCardAdapt
         mLayoutManager.setOrientation(LinearLayoutManager.VERTICAL);
         mRecyclerView.setLayoutManager(mLayoutManager);
         mRecyclerView.setHasFixedSize(true);
-        mRecyclerView.setOnTouchListener(new View.OnTouchListener() {
-            @Override
-            public boolean onTouch(View v, MotionEvent event) {
-                if (event.getActionMasked() == MotionEvent.ACTION_DOWN) {
-                    updateRefreshProgressOffset();
+        if (mSwipeRefreshLayout instanceof AccentSwipeRefreshLayout) {
+            ((AccentSwipeRefreshLayout) mSwipeRefreshLayout).setTouchInterceptor(new IExtendedView.TouchInterceptor() {
+                @Override
+                public boolean dispatchTouchEvent(View view, MotionEvent event) {
+                    return false;
                 }
-                return false;
-            }
-        });
+
+                @Override
+                public boolean onInterceptTouchEvent(View view, MotionEvent event) {
+                    if (event.getActionMasked() == MotionEvent.ACTION_DOWN) {
+                        updateRefreshProgressOffset();
+                    }
+                    return false;
+                }
+
+                @Override
+                public boolean onTouchEvent(View view, MotionEvent event) {
+                    return false;
+                }
+
+            });
+        }
         if (compact) {
             mItemDecoration = new DividerItemDecoration(context, mLayoutManager.getOrientation());
             mRecyclerView.addItemDecoration(mItemDecoration);
         }
-        mRecyclerView.setAdapter((RecyclerView.Adapter) mAdapter);
+        mRecyclerView.setAdapter(mAdapter);
 
         mScrollListener = new ContentListScrollListener(this);
         mScrollListener.setTouchSlop(ViewConfiguration.get(context).getScaledTouchSlop());
@@ -325,17 +345,20 @@ public abstract class AbsContentRecyclerViewFragment<A extends IContentCardAdapt
 
     protected void updateRefreshProgressOffset() {
         final FragmentActivity activity = getActivity();
-        if (!(activity instanceof IControlBarActivity) || mSystemWindowsInsets.top == 0 || mSwipeRefreshLayout == null
+        final Rect insets = this.mSystemWindowsInsets;
+        final SwipeRefreshLayout layout = this.mSwipeRefreshLayout;
+        if (!(activity instanceof IControlBarActivity) || insets.top == 0 || layout == null
                 || isRefreshing()) {
             return;
         }
+        final int progressCircleDiameter = layout.getProgressCircleDiameter();
+        if (progressCircleDiameter == 0) return;
         final float density = getResources().getDisplayMetrics().density;
-        final int progressCircleDiameter = mSwipeRefreshLayout.getProgressCircleDiameter();
         final IControlBarActivity control = (IControlBarActivity) activity;
         final int controlBarOffsetPixels = Math.round(control.getControlBarHeight() * (1 - control.getControlBarOffset()));
-        final int swipeStart = (mSystemWindowsInsets.top - controlBarOffsetPixels) - progressCircleDiameter;
+        final int swipeStart = (insets.top - controlBarOffsetPixels) - progressCircleDiameter;
         // 64: SwipeRefreshLayout.DEFAULT_CIRCLE_TARGET
         final int swipeDistance = Math.round(64 * density);
-        mSwipeRefreshLayout.setProgressViewOffset(false, swipeStart, swipeStart + swipeDistance);
+        layout.setProgressViewOffset(false, swipeStart, swipeStart + swipeDistance);
     }
 }

@@ -23,6 +23,7 @@ import android.app.Activity;
 import android.app.ListFragment;
 import android.content.BroadcastReceiver;
 import android.content.ContentResolver;
+import android.content.Context;
 import android.content.IntentFilter;
 import android.content.SharedPreferences;
 import android.os.Bundle;
@@ -36,6 +37,10 @@ import org.mariotaku.twidere.fragment.iface.RefreshScrollTopInterface;
 import org.mariotaku.twidere.util.AsyncTwitterWrapper;
 import org.mariotaku.twidere.util.MultiSelectManager;
 import org.mariotaku.twidere.util.Utils;
+import org.mariotaku.twidere.util.dagger.ApplicationModule;
+import org.mariotaku.twidere.util.dagger.DaggerGeneralComponent;
+
+import javax.inject.Inject;
 
 public class BaseListFragment extends ListFragment implements Constants, OnScrollListener, RefreshScrollTopInterface {
 
@@ -43,6 +48,7 @@ public class BaseListFragment extends ListFragment implements Constants, OnScrol
     private boolean mIsInstanceStateSaved;
 
     private boolean mReachedBottom, mNotReachedBottomBefore = true;
+
 
     public final TwidereApplication getApplication() {
         return TwidereApplication.getInstance(getActivity());
@@ -52,10 +58,6 @@ public class BaseListFragment extends ListFragment implements Constants, OnScrol
         final Activity activity = getActivity();
         if (activity != null) return activity.getContentResolver();
         return null;
-    }
-
-    public final MultiSelectManager getMultiSelectManager() {
-        return getApplication().getMultiSelectManager();
     }
 
     public final SharedPreferences getSharedPreferences(final String name, final int mode) {
@@ -73,10 +75,6 @@ public class BaseListFragment extends ListFragment implements Constants, OnScrol
     public final int getTabPosition() {
         final Bundle args = getArguments();
         return args != null ? args.getInt(EXTRA_TAB_POSITION, -1) : -1;
-    }
-
-    public AsyncTwitterWrapper getTwitterWrapper() {
-        return getApplication().getTwitterWrapper();
     }
 
     public void invalidateOptionsMenu() {
@@ -105,9 +103,13 @@ public class BaseListFragment extends ListFragment implements Constants, OnScrol
         lv.setOnScrollListener(this);
     }
 
+    @Inject
+    protected AsyncTwitterWrapper mTwitterWrapper;
+
     @Override
-    public void onAttach(final Activity activity) {
-        super.onAttach(activity);
+    public void onAttach(Context context) {
+        super.onAttach(context);
+        DaggerGeneralComponent.builder().applicationModule(ApplicationModule.get(context)).build().inject(this);
     }
 
     @Override

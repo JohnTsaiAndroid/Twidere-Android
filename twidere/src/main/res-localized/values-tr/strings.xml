@@ -42,7 +42,9 @@
   <string name="select_account">Hesap seç</string>
   <string name="username">Kullanıcı adı</string>
   <string name="password">Şifre</string>
+  <string name="label_data_provider">Twidere veritabanı sağlayıcı</string>
   <string name="label_refresh_service">Servisi yenile</string>
+  <string name="label_streaming_service">Akış servisi</string>
   <string name="label_background_operation_service">Arkaplan çalışma servisi</string>
   <string name="open_in_browser">Tarayıcıda aç</string>
   <string name="tap_to_load_more">Daha fazlasını yüklemek için dokunun</string>
@@ -241,6 +243,7 @@
   <string name="status_shortener">Tweet kısaltıcı</string>
   <string name="status_shortener_default">Hiçbiri (Göndermekten vazgeç)</string>
   <string name="error_message_status_too_long">Tweet çok uzun.</string>
+  <string name="error_message_message_too_long">Mesaj çok uzun.</string>
   <string name="error_message_no_content">İçerik yok</string>
   <string name="error_message_tweet_shorten_failed">Tweet kısaltılamadı.</string>
   <string name="error_message_tweet_shortener_not_found">Tweet kısaltıcı bulunamadı, belki kaldırılmıştır.</string>
@@ -256,6 +259,8 @@
   <string name="Nitems_selected_quantity_other" tools:ignore="PluralsCandidate"><xliff:g id="items">%d</xliff:g> nesne seçildi</string>
   <string name="custom_host_mapping">Özel sunucu haritalama</string>
   <string name="custom_host_mapping_summary">/etc/hosts şeklinde sunucu haritalama, ancak ekstra izin gerektirmez.</string>
+  <string name="host_mapping_host">Sunucu</string>
+  <string name="host_mapping_address">Adres (başka bir sunucu adresi olabilir)</string>
   <string name="add_host_mapping">Sunucu haritalama ekle</string>
   <string name="tcp_dns_query">TCP DNS sorgualama</string>
   <string name="dns_server">DNS Sunucusu</string>
@@ -338,6 +343,7 @@
   <string name="hashtag">Etiket</string>
   <string name="links">Kısayollar</string>
   <string name="edit_profile">Profil düzenle</string>
+  <string name="edit_details">Detayları Düzenle</string>
   <string name="display_sensitive_contents">Hassas içeriği görüntüle</string>
   <string name="display_sensitive_contents_summary">Hassas içeriği uyarmadan zaman akışında görüntüle</string>
   <string name="sensitive_content_warning">Bu tweet hassas içeriğe sahip olabilir, devam edilsin mi?</string>
@@ -360,6 +366,7 @@
   <string name="no_thanks">Hayır, teşekkürler</string>
   <string name="revoke_permissions">İzinleri kaldır</string>
   <string name="fast_scroll_thumb">Hızlı kaydırma butonu</string>
+  <string name="indicate_your_status">Tweet\'lerimi işaretle</string>
   <string name="default_ringtone">Varsayılan zil sesi</string>
   <string name="phishing_link_warning">Sahte adres linki uyarısı</string>
   <string name="phishing_link_warning_summary">Direkt mesajdaki bir muhtemel sahte adrese tıklarken uyar.</string>
@@ -370,7 +377,6 @@
   <string name="preview_images">Resim önizleme</string>
   <string name="preload_wifi_only">Yalnız Wi-Fi kullanarak önyükleme yap</string>
   <string name="sign_in_method_introduction_title">Nasıl çalışıyor?</string>
-  <string name="sign_in_method_introduction">çoğu istemci örneğin twicca bir tarayıcı açar ve size kullanıcı adı ve şifre girmenizi söyler, ve sonra sizi istemciye geri döndürür. Bazen bu çok sakıncalı olabilir. Twidere giriş için tarayıcı kullanmadan daha basit adımlar kullanır. Şifreniz hakkında endişelenmeyin. Twidere onu asla kaydetmez, bu tamamen güvenli.</string>
   <string name="quote_protected_status_notice">Korunan tweet\'i alıntı yapmak önerilmez.</string>
   <string name="edit_draft">Taslağı düzenle</string>
   <string name="profile_image">Profil resmi</string>
@@ -397,6 +403,7 @@
   <string name="search_name_deleted">Arama \"<xliff:g id="name">%s</xliff:g>\" silindi.</string>
   <string name="import_from">Şuradan import&#8230;</string>
   <string name="link_to_quoted_status">Alıntılanmış tweet\'a link</string>
+  <string name="quote_original_status">Özgün tweeti alıntıla</string>
   <string name="followed_user"><xliff:g id="user">%s</xliff:g> takiplendi.</string>
   <string name="sent_follow_request_to_user"><xliff:g id="user">%s</xliff:g> kişisine takip isteği gönderildi.</string>
   <string name="unfollowed_user"><xliff:g id="user">%s</xliff:g> takipten çıkarıldı.</string>
@@ -505,7 +512,6 @@
   <string name="theme_background_solid">Tamamen beyaz/siyah</string>
   <string name="theme_background_transparent">Transparan</string>
   <string name="theme_dark_actionbar">Koyu AksiyonBarı</string>
-  <string name="wizard_hint_compose_select_account">Tweet yazarken hesap seçmek için bu ikona basın.</string>
   <string name="view_replies">Yanıtlara bak</string>
   <string name="compact_cards_summary">Ekranda daha fazla kart görüntüle</string>
   <string name="N_new_statuses_quantity_one" tools:ignore="PluralsCandidate"><xliff:g id="items">%d</xliff:g> yeni tweet</string>

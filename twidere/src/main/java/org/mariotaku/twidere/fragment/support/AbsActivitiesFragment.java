@@ -32,18 +32,16 @@ import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
 
-import com.squareup.otto.Bus;
-
 import org.mariotaku.twidere.R;
 import org.mariotaku.twidere.adapter.AbsActivitiesAdapter;
 import org.mariotaku.twidere.adapter.AbsActivitiesAdapter.ActivityAdapterListener;
-import org.mariotaku.twidere.app.TwidereApplication;
 import org.mariotaku.twidere.fragment.iface.RefreshScrollTopInterface;
 import org.mariotaku.twidere.model.ParcelableActivity;
 import org.mariotaku.twidere.util.AsyncTwitterWrapper;
 import org.mariotaku.twidere.util.KeyboardShortcutsHandler;
 import org.mariotaku.twidere.util.RecyclerViewNavigationHelper;
 import org.mariotaku.twidere.view.HeaderDrawerLayout.DrawerCallback;
+import org.mariotaku.twidere.view.holder.ActivityTitleSummaryViewHolder;
 import org.mariotaku.twidere.view.holder.GapViewHolder;
 
 /**
@@ -70,14 +68,24 @@ public abstract class AbsActivitiesFragment<Data> extends AbsContentRecyclerView
     }
 
     @Override
-    public boolean handleKeyboardShortcutSingle(@NonNull KeyboardShortcutsHandler handler, int keyCode, @NonNull KeyEvent event) {
-        return mNavigationHelper.handleKeyboardShortcutSingle(handler, keyCode, event);
+    public void onActivityClick(ActivityTitleSummaryViewHolder holder, int position) {
+
+    }
+
+    @Override
+    public boolean handleKeyboardShortcutSingle(@NonNull KeyboardShortcutsHandler handler, int keyCode, @NonNull KeyEvent event, int metaState) {
+        return mNavigationHelper.handleKeyboardShortcutSingle(handler, keyCode, event, metaState);
     }
 
     @Override
     public boolean handleKeyboardShortcutRepeat(@NonNull KeyboardShortcutsHandler handler, final int keyCode, final int repeatCount,
-                                                @NonNull final KeyEvent event) {
-        return mNavigationHelper.handleKeyboardShortcutRepeat(handler, keyCode, repeatCount, event);
+                                                @NonNull final KeyEvent event, int metaState) {
+        return mNavigationHelper.handleKeyboardShortcutRepeat(handler, keyCode, repeatCount, event, metaState);
+    }
+
+    @Override
+    public boolean isKeyboardShortcutHandled(@NonNull KeyboardShortcutsHandler handler, final int keyCode, @NonNull final KeyEvent event, int metaState) {
+        return mNavigationHelper.isKeyboardShortcutHandled(handler, keyCode, event, metaState);
     }
 
     public SharedPreferences getSharedPreferences() {
@@ -108,16 +116,12 @@ public abstract class AbsActivitiesFragment<Data> extends AbsContentRecyclerView
     @Override
     public void onStart() {
         super.onStart();
-        final Bus bus = TwidereApplication.getInstance(getActivity()).getMessageBus();
-        assert bus != null;
-        bus.register(mStatusesBusCallback);
+        mBus.register(mStatusesBusCallback);
     }
 
     @Override
     public void onStop() {
-        final Bus bus = TwidereApplication.getInstance(getActivity()).getMessageBus();
-        assert bus != null;
-        bus.unregister(mStatusesBusCallback);
+        mBus.unregister(mStatusesBusCallback);
         super.onStop();
     }
 
@@ -142,7 +146,7 @@ public abstract class AbsActivitiesFragment<Data> extends AbsContentRecyclerView
     public boolean scrollToStart() {
         final boolean result = super.scrollToStart();
         if (result) {
-            final AsyncTwitterWrapper twitter = getTwitterWrapper();
+            final AsyncTwitterWrapper twitter = mTwitterWrapper;
             final int tabPosition = getTabPosition();
             if (twitter != null && tabPosition != -1) {
                 twitter.clearUnreadCountAsync(tabPosition);

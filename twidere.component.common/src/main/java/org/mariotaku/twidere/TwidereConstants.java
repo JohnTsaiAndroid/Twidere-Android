@@ -60,6 +60,7 @@ public interface TwidereConstants extends SharedPreferenceConstants, IntentConst
     String SCHEME_CONTENT = "content";
     String SCHEME_TWIDERE = "twidere";
     String SCHEME_DATA = "data";
+    String SCHEME_FILE = "file";
 
     String PROTOCOL_HTTP = SCHEME_HTTP + "://";
     String PROTOCOL_HTTPS = SCHEME_HTTPS + "://";
@@ -82,6 +83,7 @@ public interface TwidereConstants extends SharedPreferenceConstants, IntentConst
     String AUTHORITY_DIRECT_MESSAGES_CONVERSATION = "direct_messages_conversation";
     String AUTHORITY_SEARCH = "search";
     String AUTHORITY_MAP = "map";
+    String AUTHORITY_SCHEDULED_STATUSES = "scheduled_statuses";
     String AUTHORITY_USER_LIST = "user_list";
     String AUTHORITY_USER_LIST_TIMELINE = "user_list_timeline";
     String AUTHORITY_USER_LIST_MEMBERS = "user_list_members";
@@ -156,7 +158,7 @@ public interface TwidereConstants extends SharedPreferenceConstants, IntentConst
     int REQUEST_PICK_ACTIVITY = 18;
     int REQUEST_SETTINGS = 19;
     int REQUEST_OPEN_DOCUMENT = 20;
-    int REQUEST_SWIPEBACK_ACTIVITY = 101;
+    int REQUEST_REQUEST_PERMISSIONS = 30;
 
     int TABLE_ID_ACCOUNTS = 1;
     int TABLE_ID_STATUSES = 12;
@@ -180,6 +182,7 @@ public interface TwidereConstants extends SharedPreferenceConstants, IntentConst
     int TABLE_ID_CACHED_STATUSES = 62;
     int TABLE_ID_CACHED_HASHTAGS = 63;
     int TABLE_ID_CACHED_RELATIONSHIPS = 64;
+    int TABLE_ID_NETWORK_USAGES = 71;
     int VIRTUAL_TABLE_ID_DATABASE_READY = 100;
     int VIRTUAL_TABLE_ID_NOTIFICATIONS = 101;
     int VIRTUAL_TABLE_ID_PREFERENCES = 102;
@@ -193,6 +196,7 @@ public interface TwidereConstants extends SharedPreferenceConstants, IntentConst
     int VIRTUAL_TABLE_ID_CACHED_USERS_WITH_RELATIONSHIP = 121;
     int VIRTUAL_TABLE_ID_CACHED_USERS_WITH_SCORE = 122;
     int VIRTUAL_TABLE_ID_DRAFTS_UNSENT = 131;
+    int VIRTUAL_TABLE_ID_DRAFTS_NOTIFICATIONS = 132;
 
     int NOTIFICATION_ID_HOME_TIMELINE = 1;
     int NOTIFICATION_ID_MENTIONS_TIMELINE = 2;

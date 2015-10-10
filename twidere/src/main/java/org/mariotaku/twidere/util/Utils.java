@@ -48,6 +48,8 @@ import android.graphics.drawable.BitmapDrawable;
 import android.graphics.drawable.Drawable;
 import android.graphics.drawable.NinePatchDrawable;
 import android.graphics.drawable.TransitionDrawable;
+import android.location.Location;
+import android.location.LocationManager;
 import android.net.ConnectivityManager;
 import android.net.NetworkInfo;
 import android.net.Uri;
@@ -80,6 +82,7 @@ import android.support.v4.view.MenuItemCompat;
 import android.support.v4.view.accessibility.AccessibilityEventCompat;
 import android.support.v7.app.AppCompatActivity;
 import android.support.v7.widget.ShareActionProvider;
+import android.system.ErrnoException;
 import android.text.Editable;
 import android.text.SpannableStringBuilder;
 import android.text.TextUtils;
@@ -112,25 +115,24 @@ import android.widget.Toast;
 import com.bluelinelabs.logansquare.LoganSquare;
 
 import org.apache.commons.lang3.ArrayUtils;
-import org.apache.http.protocol.HTTP;
 import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
-import org.mariotaku.querybuilder.AllColumns;
-import org.mariotaku.querybuilder.Columns;
-import org.mariotaku.querybuilder.Columns.Column;
-import org.mariotaku.querybuilder.Expression;
-import org.mariotaku.querybuilder.OrderBy;
-import org.mariotaku.querybuilder.RawItemArray;
-import org.mariotaku.querybuilder.SQLFunctions;
-import org.mariotaku.querybuilder.SQLQueryBuilder;
-import org.mariotaku.querybuilder.Selectable;
-import org.mariotaku.querybuilder.Table;
-import org.mariotaku.querybuilder.Tables;
-import org.mariotaku.querybuilder.query.SQLSelectQuery;
 import org.mariotaku.restfu.RestAPIFactory;
 import org.mariotaku.restfu.RestClient;
 import org.mariotaku.restfu.http.Authorization;
+import org.mariotaku.sqliteqb.library.AllColumns;
+import org.mariotaku.sqliteqb.library.Columns;
+import org.mariotaku.sqliteqb.library.Columns.Column;
+import org.mariotaku.sqliteqb.library.Expression;
+import org.mariotaku.sqliteqb.library.OrderBy;
+import org.mariotaku.sqliteqb.library.RawItemArray;
+import org.mariotaku.sqliteqb.library.SQLFunctions;
+import org.mariotaku.sqliteqb.library.SQLQueryBuilder;
+import org.mariotaku.sqliteqb.library.Selectable;
+import org.mariotaku.sqliteqb.library.Table;
+import org.mariotaku.sqliteqb.library.Tables;
+import org.mariotaku.sqliteqb.library.query.SQLSelectQuery;
 import org.mariotaku.twidere.BuildConfig;
 import org.mariotaku.twidere.Constants;
 import org.mariotaku.twidere.R;
@@ -143,6 +145,7 @@ import org.mariotaku.twidere.api.twitter.Twitter;
 import org.mariotaku.twidere.api.twitter.TwitterException;
 import org.mariotaku.twidere.api.twitter.auth.OAuthSupport;
 import org.mariotaku.twidere.api.twitter.model.DirectMessage;
+import org.mariotaku.twidere.api.twitter.model.GeoLocation;
 import org.mariotaku.twidere.api.twitter.model.RateLimitStatus;
 import org.mariotaku.twidere.api.twitter.model.Relationship;
 import org.mariotaku.twidere.api.twitter.model.Status;
@@ -158,6 +161,7 @@ import org.mariotaku.twidere.fragment.support.ListsFragment;
 import org.mariotaku.twidere.fragment.support.MessagesConversationFragment;
 import org.mariotaku.twidere.fragment.support.MutesUsersListFragment;
 import org.mariotaku.twidere.fragment.support.SavedSearchesListFragment;
+import org.mariotaku.twidere.fragment.support.ScheduledStatusesFragment;
 import org.mariotaku.twidere.fragment.support.SearchFragment;
 import org.mariotaku.twidere.fragment.support.SensitiveContentWarningDialogFragment;
 import org.mariotaku.twidere.fragment.support.SetUserNicknameDialogFragment;
@@ -186,6 +190,7 @@ import org.mariotaku.twidere.graphic.ActionIconDrawable;
 import org.mariotaku.twidere.graphic.PaddingDrawable;
 import org.mariotaku.twidere.menu.SupportStatusShareProvider;
 import org.mariotaku.twidere.model.AccountPreferences;
+import org.mariotaku.twidere.model.ConsumerKeyType;
 import org.mariotaku.twidere.model.ParcelableAccount;
 import org.mariotaku.twidere.model.ParcelableCredentials;
 import org.mariotaku.twidere.model.ParcelableDirectMessage;
@@ -196,6 +201,7 @@ import org.mariotaku.twidere.model.ParcelableUser;
 import org.mariotaku.twidere.model.ParcelableUserList;
 import org.mariotaku.twidere.provider.TwidereDataStore;
 import org.mariotaku.twidere.provider.TwidereDataStore.Accounts;
+import org.mariotaku.twidere.provider.TwidereDataStore.Activities;
 import org.mariotaku.twidere.provider.TwidereDataStore.CacheFiles;
 import org.mariotaku.twidere.provider.TwidereDataStore.CachedHashtags;
 import org.mariotaku.twidere.provider.TwidereDataStore.CachedImages;
@@ -210,6 +216,7 @@ import org.mariotaku.twidere.provider.TwidereDataStore.Drafts;
 import org.mariotaku.twidere.provider.TwidereDataStore.Filters;
 import org.mariotaku.twidere.provider.TwidereDataStore.Filters.Users;
 import org.mariotaku.twidere.provider.TwidereDataStore.Mentions;
+import org.mariotaku.twidere.provider.TwidereDataStore.NetworkUsages;
 import org.mariotaku.twidere.provider.TwidereDataStore.Notifications;
 import org.mariotaku.twidere.provider.TwidereDataStore.Permissions;
 import org.mariotaku.twidere.provider.TwidereDataStore.Preferences;
@@ -250,8 +257,6 @@ import java.util.regex.Pattern;
 import java.util.zip.CRC32;
 
 import javax.net.ssl.SSLException;
-
-import edu.tsinghua.spice.SpiceService;
 
 import static android.text.TextUtils.isEmpty;
 import static android.text.format.DateUtils.getRelativeTimeSpanString;
@@ -316,6 +321,8 @@ public final class Utils implements Constants {
                 TABLE_ID_SAVED_SEARCHES);
         CONTENT_PROVIDER_URI_MATCHER.addURI(TwidereDataStore.AUTHORITY, SearchHistory.CONTENT_PATH,
                 TABLE_ID_SEARCH_HISTORY);
+        CONTENT_PROVIDER_URI_MATCHER.addURI(TwidereDataStore.AUTHORITY, NetworkUsages.CONTENT_PATH,
+                TABLE_ID_NETWORK_USAGES);
 
         CONTENT_PROVIDER_URI_MATCHER.addURI(TwidereDataStore.AUTHORITY, Notifications.CONTENT_PATH,
                 VIRTUAL_TABLE_ID_NOTIFICATIONS);
@@ -351,6 +358,8 @@ public final class Utils implements Constants {
                 VIRTUAL_TABLE_ID_CACHED_USERS_WITH_SCORE);
         CONTENT_PROVIDER_URI_MATCHER.addURI(TwidereDataStore.AUTHORITY, Drafts.CONTENT_PATH_UNSENT,
                 VIRTUAL_TABLE_ID_DRAFTS_UNSENT);
+        CONTENT_PROVIDER_URI_MATCHER.addURI(TwidereDataStore.AUTHORITY, Drafts.CONTENT_PATH_NOTIFICATIONS,
+                VIRTUAL_TABLE_ID_DRAFTS_NOTIFICATIONS);
 
         LINK_HANDLER_URI_MATCHER.addURI(AUTHORITY_STATUS, null, LINK_ID_STATUS);
         LINK_HANDLER_URI_MATCHER.addURI(AUTHORITY_USER, null, LINK_ID_USER);
@@ -379,6 +388,7 @@ public final class Utils implements Constants {
         LINK_HANDLER_URI_MATCHER.addURI(AUTHORITY_SEARCH, null, LINK_ID_SEARCH);
         LINK_HANDLER_URI_MATCHER.addURI(AUTHORITY_MUTES_USERS, null, LINK_ID_MUTES_USERS);
         LINK_HANDLER_URI_MATCHER.addURI(AUTHORITY_MAP, null, LINK_ID_MAP);
+        LINK_HANDLER_URI_MATCHER.addURI(AUTHORITY_SCHEDULED_STATUSES, null, LINK_ID_SCHEDULED_STATUSES);
 
         LINK_HANDLER_URI_MATCHER.addURI(AUTHORITY_ACCOUNTS, null, LINK_ID_ACCOUNTS);
         LINK_HANDLER_URI_MATCHER.addURI(AUTHORITY_DRAFTS, null, LINK_ID_DRAFTS);
@@ -538,7 +548,7 @@ public final class Utils implements Constants {
         final Expression filteredUsersWhere = Expression.or(
                 Expression.in(new Column(new Table(table), Statuses.USER_ID), filteredUsersQuery),
                 Expression.in(new Column(new Table(table), Statuses.RETWEETED_BY_USER_ID), filteredUsersQuery),
-                Expression.in(new Column(new Table(table), Statuses.QUOTED_BY_USER_ID), filteredUsersQuery)
+                Expression.in(new Column(new Table(table), Statuses.QUOTED_USER_ID), filteredUsersQuery)
         );
         final SQLSelectQuery.Builder filteredIdsQueryBuilder = SQLQueryBuilder
                 .select(true, new Column(new Table(table), Statuses._ID))
@@ -550,7 +560,7 @@ public final class Utils implements Constants {
                 .where(Expression.or(
                         Expression.likeRaw(new Column(new Table(table), Statuses.SOURCE),
                                 "'%>'||" + Filters.Sources.TABLE_NAME + "." + Filters.Sources.VALUE + "||'</a>%'"),
-                        Expression.likeRaw(new Column(new Table(table), Statuses.QUOTE_SOURCE),
+                        Expression.likeRaw(new Column(new Table(table), Statuses.QUOTED_SOURCE),
                                 "'%>'||" + Filters.Sources.TABLE_NAME + "." + Filters.Sources.VALUE + "||'</a>%'")
                 ))
                 .union()
@@ -559,7 +569,7 @@ public final class Utils implements Constants {
                 .where(Expression.or(
                         Expression.likeRaw(new Column(new Table(table), Statuses.TEXT_PLAIN),
                                 "'%'||" + Filters.Keywords.TABLE_NAME + "." + Filters.Keywords.VALUE + "||'%'"),
-                        Expression.likeRaw(new Column(new Table(table), Statuses.QUOTE_TEXT_PLAIN),
+                        Expression.likeRaw(new Column(new Table(table), Statuses.QUOTED_TEXT_PLAIN),
                                 "'%'||" + Filters.Keywords.TABLE_NAME + "." + Filters.Keywords.VALUE + "||'%'")
                 ))
                 .union()
@@ -568,12 +578,64 @@ public final class Utils implements Constants {
                 .where(Expression.or(
                         Expression.likeRaw(new Column(new Table(table), Statuses.TEXT_HTML),
                                 "'%>%'||" + Filters.Links.TABLE_NAME + "." + Filters.Links.VALUE + "||'%</a>%'"),
-                        Expression.likeRaw(new Column(new Table(table), Statuses.QUOTE_TEXT_HTML),
+                        Expression.likeRaw(new Column(new Table(table), Statuses.QUOTED_TEXT_HTML),
                                 "'%>%'||" + Filters.Links.TABLE_NAME + "." + Filters.Links.VALUE + "||'%</a>%'")
                 ));
         final Expression filterExpression = Expression.or(
                 Expression.notIn(new Column(new Table(table), Statuses._ID), filteredIdsQueryBuilder.build()),
                 Expression.equals(new Column(new Table(table), Statuses.IS_GAP), 1)
+        );
+        if (extraSelection != null) {
+            return Expression.and(filterExpression, extraSelection);
+        }
+        return filterExpression;
+    }
+
+    @NonNull
+    public static Expression buildActivityFilterWhereClause(@NonNull final String table, final Expression extraSelection) {
+        final SQLSelectQuery filteredUsersQuery = SQLQueryBuilder
+                .select(new Column(new Table(Filters.Users.TABLE_NAME), Filters.Users.USER_ID))
+                .from(new Tables(Filters.Users.TABLE_NAME))
+                .build();
+        final Expression filteredUsersWhere = Expression.or(
+                Expression.in(new Column(new Table(table), Activities.STATUS_USER_ID), filteredUsersQuery),
+                Expression.in(new Column(new Table(table), Activities.STATUS_RETWEETED_BY_USER_ID), filteredUsersQuery),
+                Expression.in(new Column(new Table(table), Activities.STATUS_QUOTED_USER_ID), filteredUsersQuery)
+        );
+        final SQLSelectQuery.Builder filteredIdsQueryBuilder = SQLQueryBuilder
+                .select(true, new Column(new Table(table), Activities._ID))
+                .from(new Tables(table))
+                .where(filteredUsersWhere)
+                .union()
+                .select(true, new Columns(new Column(new Table(table), Activities._ID)))
+                .from(new Tables(table, Filters.Sources.TABLE_NAME))
+                .where(Expression.or(
+                        Expression.likeRaw(new Column(new Table(table), Activities.STATUS_SOURCE),
+                                "'%>'||" + Filters.Sources.TABLE_NAME + "." + Filters.Sources.VALUE + "||'</a>%'"),
+                        Expression.likeRaw(new Column(new Table(table), Activities.STATUS_QUOTE_SOURCE),
+                                "'%>'||" + Filters.Sources.TABLE_NAME + "." + Filters.Sources.VALUE + "||'</a>%'")
+                ))
+                .union()
+                .select(true, new Columns(new Column(new Table(table), Activities._ID)))
+                .from(new Tables(table, Filters.Keywords.TABLE_NAME))
+                .where(Expression.or(
+                        Expression.likeRaw(new Column(new Table(table), Activities.STATUS_TEXT_PLAIN),
+                                "'%'||" + Filters.Keywords.TABLE_NAME + "." + Filters.Keywords.VALUE + "||'%'"),
+                        Expression.likeRaw(new Column(new Table(table), Activities.STATUS_QUOTE_TEXT_PLAIN),
+                                "'%'||" + Filters.Keywords.TABLE_NAME + "." + Filters.Keywords.VALUE + "||'%'")
+                ))
+                .union()
+                .select(true, new Columns(new Column(new Table(table), Activities._ID)))
+                .from(new Tables(table, Filters.Links.TABLE_NAME))
+                .where(Expression.or(
+                        Expression.likeRaw(new Column(new Table(table), Activities.STATUS_TEXT_HTML),
+                                "'%>%'||" + Filters.Links.TABLE_NAME + "." + Filters.Links.VALUE + "||'%</a>%'"),
+                        Expression.likeRaw(new Column(new Table(table), Activities.STATUS_QUOTE_TEXT_HTML),
+                                "'%>%'||" + Filters.Links.TABLE_NAME + "." + Filters.Links.VALUE + "||'%</a>%'")
+                ));
+        final Expression filterExpression = Expression.or(
+                Expression.notIn(new Column(new Table(table), Activities._ID), filteredIdsQueryBuilder.build()),
+                Expression.equals(new Column(new Table(table), Activities.STATUS_IS_GAP), 1)
         );
         if (extraSelection != null) {
             return Expression.and(filterExpression, extraSelection);
@@ -677,6 +739,12 @@ public final class Utils implements Constants {
         } catch (final IOException e) {
             return false;
         }
+        return true;
+    }
+
+    public static boolean closeSilently(final Cursor c) {
+        if (c == null) return false;
+        c.close();
         return true;
     }
 
@@ -878,6 +946,10 @@ public final class Utils implements Constants {
             }
             case LINK_ID_MUTES_USERS: {
                 fragment = new MutesUsersListFragment();
+                break;
+            }
+            case LINK_ID_SCHEDULED_STATUSES: {
+                fragment = new ScheduledStatusesFragment();
                 break;
             }
             case LINK_ID_DIRECT_MESSAGES_CONVERSATION: {
@@ -1690,8 +1762,8 @@ public final class Utils implements Constants {
         if (context == null) return -1;
         final SharedPreferences prefs = context.getSharedPreferences(SHARED_PREFERENCES_NAME, Context.MODE_PRIVATE);
         final long accountId = prefs.getLong(KEY_DEFAULT_ACCOUNT_ID, -1);
-        final long[] accountIds;
-        if (accountId == -1 && (accountIds = Utils.getAccountIds(context)).length > 0) {
+        final long[] accountIds = Utils.getAccountIds(context);
+        if (accountIds.length > 0 && !ArrayUtils.contains(accountIds, accountId) && accountIds.length > 0) {
              /* TODO: this is just a quick fix */
             return accountIds[0];
         }
@@ -1804,6 +1876,16 @@ public final class Utils implements Constants {
         return new File(context.getCacheDir(), cacheDirName);
     }
 
+    @Nullable
+    public static File getExternalCacheDir(final Context context, final String cacheDirName) {
+        if (context == null) throw new NullPointerException();
+        final File externalCacheDir = context.getExternalCacheDir();
+        if (externalCacheDir == null) return null;
+        final File cacheDir = new File(externalCacheDir, cacheDirName);
+        if (cacheDir.isDirectory() || cacheDir.mkdirs()) return cacheDir;
+        return new File(context.getCacheDir(), cacheDirName);
+    }
+
     public static CharSequence getKeywordBoldedText(final CharSequence orig, final String... keywords) {
         return getKeywordHighlightedText(orig, new StyleSpan(Typeface.BOLD), keywords);
     }
@@ -1884,7 +1966,7 @@ public final class Utils implements Constants {
         final long[] messageIds = new long[accountIds.length];
         int idx = 0;
         for (final long accountId : accountIds) {
-            final String where = Statuses.ACCOUNT_ID + " = " + accountId;
+            final String where = Expression.equals(DirectMessages.ACCOUNT_ID, accountId).getSQL();
             final Cursor cur = ContentResolverUtils.query(resolver, uri, cols, where, null,
                     DirectMessages.DEFAULT_SORT_ORDER);
             if (cur == null) {
@@ -1906,14 +1988,14 @@ public final class Utils implements Constants {
         return getNewestStatusIdsFromDatabase(context, uri, account_ids);
     }
 
-    public static long[] getNewestStatusIdsFromDatabase(final Context context, final Uri uri, final long[] account_ids) {
-        if (context == null || uri == null || account_ids == null) return null;
+    public static long[] getNewestStatusIdsFromDatabase(final Context context, final Uri uri, final long[] accountIds) {
+        if (context == null || uri == null || accountIds == null) return null;
         final String[] cols = new String[]{Statuses.STATUS_ID};
         final ContentResolver resolver = context.getContentResolver();
-        final long[] status_ids = new long[account_ids.length];
+        final long[] status_ids = new long[accountIds.length];
         int idx = 0;
-        for (final long account_id : account_ids) {
-            final String where = Statuses.ACCOUNT_ID + " = " + account_id;
+        for (final long accountId : accountIds) {
+            final String where = Expression.equals(Statuses.ACCOUNT_ID, accountId).getSQL();
             final Cursor cur = ContentResolverUtils
                     .query(resolver, uri, cols, where, null, Statuses.DEFAULT_SORT_ORDER);
             if (cur == null) {
@@ -1962,14 +2044,14 @@ public final class Utils implements Constants {
         return getOldestMessageIdsFromDatabase(context, uri, account_ids);
     }
 
-    public static long[] getOldestMessageIdsFromDatabase(final Context context, final Uri uri, final long[] account_ids) {
+    public static long[] getOldestMessageIdsFromDatabase(final Context context, final Uri uri, final long[] accountIds) {
         if (context == null || uri == null) return null;
         final String[] cols = new String[]{DirectMessages.MESSAGE_ID};
         final ContentResolver resolver = context.getContentResolver();
-        final long[] status_ids = new long[account_ids.length];
+        final long[] status_ids = new long[accountIds.length];
         int idx = 0;
-        for (final long account_id : account_ids) {
-            final String where = Statuses.ACCOUNT_ID + " = " + account_id;
+        for (final long accountId : accountIds) {
+            final String where = Expression.equals(DirectMessages.ACCOUNT_ID, accountId).getSQL();
             final Cursor cur = ContentResolverUtils.query(resolver, uri, cols, where, null, DirectMessages.MESSAGE_ID);
             if (cur == null) {
                 continue;
@@ -1990,14 +2072,14 @@ public final class Utils implements Constants {
         return getOldestStatusIdsFromDatabase(context, uri, account_ids);
     }
 
-    public static long[] getOldestStatusIdsFromDatabase(final Context context, final Uri uri, final long[] account_ids) {
-        if (context == null || uri == null || account_ids == null) return null;
+    public static long[] getOldestStatusIdsFromDatabase(final Context context, final Uri uri, final long[] accountIds) {
+        if (context == null || uri == null || accountIds == null) return null;
         final String[] cols = new String[]{Statuses.STATUS_ID};
         final ContentResolver resolver = context.getContentResolver();
-        final long[] status_ids = new long[account_ids.length];
+        final long[] status_ids = new long[accountIds.length];
         int idx = 0;
-        for (final long account_id : account_ids) {
-            final String where = Statuses.ACCOUNT_ID + " = " + account_id;
+        for (final long accountId : accountIds) {
+            final String where = Expression.equals(Statuses.ACCOUNT_ID, accountId).getSQL();
             final Cursor cur = ContentResolverUtils.query(resolver, uri, cols, where, null, Statuses.STATUS_ID);
             if (cur == null) {
                 continue;
@@ -2181,6 +2263,8 @@ public final class Utils implements Constants {
                 return SavedSearches.TABLE_NAME;
             case TABLE_ID_SEARCH_HISTORY:
                 return SearchHistory.TABLE_NAME;
+            case TABLE_ID_NETWORK_USAGES:
+                return NetworkUsages.TABLE_NAME;
             default:
                 return null;
         }
@@ -2431,10 +2515,10 @@ public final class Utils implements Constants {
                 status.retweeted_by_user_id, filter_rts);
     }
 
-    public static boolean isMyAccount(final Context context, final long account_id) {
+    public static boolean isMyAccount(final Context context, final long accountId) {
         if (context == null) return false;
         final ContentResolver resolver = context.getContentResolver();
-        final String where = Accounts.ACCOUNT_ID + " = " + account_id;
+        final String where = Expression.equals(Accounts.ACCOUNT_ID, accountId).getSQL();
         final Cursor cur = ContentResolverUtils.query(resolver, Accounts.CONTENT_URI, new String[0], where, null, null);
         try {
             return cur != null && cur.getCount() > 0;
@@ -2448,7 +2532,7 @@ public final class Utils implements Constants {
     public static boolean isMyAccount(final Context context, final String screen_name) {
         if (context == null) return false;
         final ContentResolver resolver = context.getContentResolver();
-        final String where = Accounts.SCREEN_NAME + " = ?";
+        final String where = Expression.equalsArgs(Accounts.SCREEN_NAME).getSQL();
         final Cursor cur = ContentResolverUtils.query(resolver, Accounts.CONTENT_URI, new String[0], where,
                 new String[]{screen_name}, null);
         try {
@@ -2464,8 +2548,8 @@ public final class Utils implements Constants {
         return status != null && isMyRetweet(status.account_id, status.retweeted_by_user_id, status.my_retweet_id);
     }
 
-    public static boolean isMyRetweet(final long account_id, final long retweeted_by_id, final long my_retweet_id) {
-        return retweeted_by_id == account_id || my_retweet_id > 0;
+    public static boolean isMyRetweet(final long accountId, final long retweetedById, final long myRetweetId) {
+        return retweetedById == accountId || myRetweetId > 0;
     }
 
     public static boolean isNetworkAvailable(final Context context) {
@@ -2483,18 +2567,23 @@ public final class Utils implements Constants {
     }
 
     public static boolean isOfficialKeyAccount(final Context context, final long accountId) {
-        if (context == null) return false;
+        return getOfficialKeyType(context, accountId) != ConsumerKeyType.UNKNOWN;
+    }
+
+    @NonNull
+    public static ConsumerKeyType getOfficialKeyType(final Context context, final long accountId) {
+        if (context == null) return ConsumerKeyType.UNKNOWN;
         final String[] projection = {Accounts.CONSUMER_KEY, Accounts.CONSUMER_SECRET};
         final String selection = Expression.equals(Accounts.ACCOUNT_ID, accountId).getSQL();
         final Cursor c = context.getContentResolver().query(Accounts.CONTENT_URI, projection, selection, null, null);
         //noinspection TryFinallyCanBeTryWithResources
         try {
             if (c.moveToPosition(0))
-                return TwitterContentUtils.isOfficialKey(context, c.getString(0), c.getString(1));
+                return TwitterContentUtils.getOfficialKeyType(context, c.getString(0), c.getString(1));
         } finally {
             c.close();
         }
-        return false;
+        return ConsumerKeyType.UNKNOWN;
     }
 
     public static boolean isOfficialTwitterInstance(final Context context, final Twitter twitter) {
@@ -2513,6 +2602,13 @@ public final class Utils implements Constants {
         final NetworkInfo networkInfo = conn.getActiveNetworkInfo();
         return networkInfo != null && networkInfo.getType() == ConnectivityManager.TYPE_WIFI
                 && networkInfo.isConnected();
+    }
+
+    public static int getActiveNetworkType(final Context context) {
+        if (context == null) return -1;
+        final ConnectivityManager conn = (ConnectivityManager) context.getSystemService(Context.CONNECTIVITY_SERVICE);
+        final NetworkInfo networkInfo = conn.getActiveNetworkInfo();
+        return networkInfo != null && networkInfo.isConnected() ? networkInfo.getType() : -1;
     }
 
     public static boolean isRedirected(final int code) {
@@ -2584,12 +2680,12 @@ public final class Utils implements Constants {
         context.startActivity(intent);
     }
 
-    public static void openMedia(final Context context, final ParcelableDirectMessage message, final ParcelableMedia current, Bundle options) {
+    public static void openMedia(final Context context, final ParcelableDirectMessage message, final ParcelableMedia current, @Nullable Bundle options) {
         openMedia(context, message.account_id, false, null, message, current, message.media, options);
     }
 
     public static void openMedia(final Context context, final ParcelableStatus status, final ParcelableMedia current, Bundle options) {
-        openMedia(context, status.account_id, status.is_possibly_sensitive, status, null, current, status.media, options);
+        openMedia(context, status.account_id, status.is_possibly_sensitive, status, null, current, getPrimaryMedia(status), options);
     }
 
     public static void openMedia(final Context context, final long accountId, final boolean isPossiblySensitive,
@@ -2634,11 +2730,18 @@ public final class Utils implements Constants {
         return result;
     }
 
-
     public static void openMediaDirectly(final Context context, final long accountId,
                                          final ParcelableStatus status, final ParcelableMedia current,
-                                         final ParcelableMedia[] media, Bundle options) {
-        openMediaDirectly(context, accountId, status, null, current, media, options);
+                                         final Bundle options) {
+        openMediaDirectly(context, accountId, status, null, current, getPrimaryMedia(status), options);
+    }
+
+    public static ParcelableMedia[] getPrimaryMedia(ParcelableStatus status) {
+        if (status.is_quote && ArrayUtils.isEmpty(status.media)) {
+            return status.quoted_media;
+        } else {
+            return status.media;
+        }
     }
 
     public static void openMediaDirectly(final Context context, final long accountId,
@@ -2691,12 +2794,22 @@ public final class Utils implements Constants {
         context.startActivity(Intent.createChooser(intent, null));
     }
 
-    public static void openMutesUsers(final Activity activity, final long account_id) {
+    public static void openMutesUsers(final Activity activity, final long accountId) {
         if (activity == null) return;
         final Uri.Builder builder = new Uri.Builder();
         builder.scheme(SCHEME_TWIDERE);
         builder.authority(AUTHORITY_MUTES_USERS);
-        builder.appendQueryParameter(QUERY_PARAM_ACCOUNT_ID, String.valueOf(account_id));
+        builder.appendQueryParameter(QUERY_PARAM_ACCOUNT_ID, String.valueOf(accountId));
+        final Intent intent = new Intent(Intent.ACTION_VIEW, builder.build());
+        activity.startActivity(intent);
+    }
+
+    public static void openScheduledStatuses(final Activity activity, final long accountId) {
+        if (activity == null) return;
+        final Uri.Builder builder = new Uri.Builder();
+        builder.scheme(SCHEME_TWIDERE);
+        builder.authority(AUTHORITY_SCHEDULED_STATUSES);
+        builder.appendQueryParameter(QUERY_PARAM_ACCOUNT_ID, String.valueOf(accountId));
         final Intent intent = new Intent(Intent.ACTION_VIEW, builder.build());
         activity.startActivity(intent);
     }
@@ -3224,26 +3337,26 @@ public final class Utils implements Constants {
         final int retweetHighlight = resources.getColor(R.color.highlight_retweet);
         final int favoriteHighlight = resources.getColor(R.color.highlight_favorite);
         final boolean isMyRetweet = isMyRetweet(status);
-        final MenuItem delete = menu.findItem(MENU_DELETE);
+        final MenuItem delete = menu.findItem(R.id.delete);
         if (delete != null) {
-            delete.setVisible(status.account_id == status.user_id && !isMyRetweet);
+            delete.setVisible(isMyStatus(status));
         }
-        final MenuItem retweet = menu.findItem(MENU_RETWEET);
+        final MenuItem retweet = menu.findItem(R.id.retweet);
         if (retweet != null) {
             ActionIconDrawable.setMenuHighlight(retweet, new TwidereMenuInfo(isMyRetweet, retweetHighlight));
             retweet.setTitle(isMyRetweet ? R.string.cancel_retweet : R.string.retweet);
         }
-        final MenuItem favorite = menu.findItem(MENU_FAVORITE);
+        final MenuItem favorite = menu.findItem(R.id.favorite);
         if (favorite != null) {
             ActionIconDrawable.setMenuHighlight(favorite, new TwidereMenuInfo(status.is_favorite, favoriteHighlight));
             favorite.setTitle(status.is_favorite ? R.string.unfavorite : R.string.favorite);
         }
-        final MenuItem translate = menu.findItem(MENU_TRANSLATE);
+        final MenuItem translate = menu.findItem(R.id.translate);
         if (translate != null) {
             final boolean isOfficialKey = isOfficialCredentials(context, account);
             final SharedPreferencesWrapper prefs = SharedPreferencesWrapper.getInstance(context, SHARED_PREFERENCES_NAME, Context.MODE_PRIVATE);
             final boolean forcePrivateApis = prefs.getBoolean(KEY_FORCE_USING_PRIVATE_APIS, false);
-            MenuUtils.setMenuItemAvailability(menu, MENU_TRANSLATE, forcePrivateApis || isOfficialKey);
+            MenuUtils.setMenuItemAvailability(menu, R.id.translate, forcePrivateApis || isOfficialKey);
         }
         menu.removeGroup(MENU_GROUP_STATUS_EXTENSION);
         addIntentToMenuForExtension(context, menu, MENU_GROUP_STATUS_EXTENSION, INTENT_ACTION_EXTENSION_OPEN_STATUS,
@@ -3262,6 +3375,11 @@ public final class Utils implements Constants {
             addIntentToMenu(context, shareSubMenu, shareIntent, MENU_GROUP_STATUS_SHARE);
         }
 
+    }
+
+    private static boolean isMyStatus(ParcelableStatus status) {
+        if (isMyRetweet(status)) return true;
+        return status.account_id == status.user_id;
     }
 
     public static boolean shouldForceUsingPrivateAPIs(final Context context) {
@@ -3367,13 +3485,13 @@ public final class Utils implements Constants {
         final String message;
         if (te != null) {
             if (action != null) {
-                if (te.exceededRateLimitation()) {
-                    final RateLimitStatus status = te.getRateLimitStatus();
-                    final long sec_until_reset = status.getSecondsUntilReset() * 1000;
-                    final String next_reset_time = ParseUtils.parseString(getRelativeTimeSpanString(System
-                            .currentTimeMillis() + sec_until_reset));
+                final RateLimitStatus status = te.getRateLimitStatus();
+                if (te.exceededRateLimitation() && status != null) {
+                    final long secUntilReset = status.getSecondsUntilReset() * 1000;
+                    final String nextResetTime = ParseUtils.parseString(getRelativeTimeSpanString(System
+                            .currentTimeMillis() + secUntilReset));
                     message = context.getString(R.string.error_message_rate_limit_with_action, action,
-                            next_reset_time.trim());
+                            nextResetTime.trim());
                 } else if (isErrorCodeMessageSupported(te)) {
                     final String msg = StatusCodeMessageUtils
                             .getMessage(context, te.getStatusCode(), te.getErrorCode());
@@ -3413,19 +3531,6 @@ public final class Utils implements Constants {
     public static void showWarnMessage(final Context context, final int resId, final boolean long_message) {
         if (context == null) return;
         showWarnMessage(context, context.getText(resId), long_message);
-    }
-
-    public static void startUsageStatisticsServiceIfNeeded(final Context context) {
-        final SharedPreferences prefs = context.getSharedPreferences(SHARED_PREFERENCES_NAME, Context.MODE_PRIVATE);
-        //spice
-        final Intent spiceProfilingServiceIntent = new Intent(context, SpiceService.class);
-        if (prefs.getBoolean(KEY_USAGE_STATISTICS, false)) {
-            //spice
-            context.startService(spiceProfilingServiceIntent);
-        } else {
-            //spice
-            context.stopService(spiceProfilingServiceIntent);
-        }
     }
 
     public static void startRefreshServiceIfNeeded(final Context context) {
@@ -3522,7 +3627,7 @@ public final class Utils implements Constants {
     }
 
     public static boolean useShareScreenshot() {
-        return false;
+        return Boolean.parseBoolean("false");
     }
 
     private static Drawable getMetadataDrawable(final PackageManager pm, final ActivityInfo info, final String key) {
@@ -3534,13 +3639,13 @@ public final class Utils implements Constants {
     public static boolean handleMenuItemClick(Context context, Fragment fragment, FragmentManager fm, AsyncTwitterWrapper twitter, ParcelableStatus status, MenuItem item) {
         final UserColorNameManager colorNameManager = UserColorNameManager.getInstance(context);
         switch (item.getItemId()) {
-            case MENU_COPY: {
+            case R.id.copy: {
                 if (ClipboardUtils.setText(context, status.text_plain)) {
                     showOkMessage(context, R.string.text_copied, false);
                 }
                 break;
             }
-            case MENU_RETWEET: {
+            case R.id.retweet: {
                 if (isMyRetweet(status)) {
                     twitter.cancelRetweetAsync(status.account_id, status.id, status.my_retweet_id);
                 } else {
@@ -3548,19 +3653,19 @@ public final class Utils implements Constants {
                 }
                 break;
             }
-            case MENU_QUOTE: {
+            case R.id.quote: {
                 final Intent intent = new Intent(INTENT_ACTION_QUOTE);
                 intent.putExtra(EXTRA_STATUS, status);
                 context.startActivity(intent);
                 break;
             }
-            case MENU_REPLY: {
+            case R.id.reply: {
                 final Intent intent = new Intent(INTENT_ACTION_REPLY);
                 intent.putExtra(EXTRA_STATUS, status);
                 context.startActivity(intent);
                 break;
             }
-            case MENU_FAVORITE: {
+            case R.id.favorite: {
                 if (status.is_favorite) {
                     twitter.destroyFavoriteAsync(status.account_id, status.id);
                 } else {
@@ -3568,15 +3673,15 @@ public final class Utils implements Constants {
                 }
                 break;
             }
-            case MENU_DELETE: {
+            case R.id.delete: {
                 DestroyStatusDialogFragment.show(fm, status);
                 break;
             }
-            case MENU_ADD_TO_FILTER: {
+            case R.id.add_to_filter: {
                 AddStatusFilterDialogFragment.show(fm, status);
                 break;
             }
-            case MENU_SET_COLOR: {
+            case R.id.set_color: {
                 final Intent intent = new Intent(context, ColorPickerDialogActivity.class);
                 final int color = colorNameManager.getUserColor(status.user_id, true);
                 if (color != 0) {
@@ -3591,16 +3696,16 @@ public final class Utils implements Constants {
                 }
                 break;
             }
-            case MENU_CLEAR_NICKNAME: {
+            case R.id.clear_nickname: {
                 colorNameManager.clearUserNickname(status.user_id);
                 break;
             }
-            case MENU_SET_NICKNAME: {
+            case R.id.set_nickname: {
                 final String nick = colorNameManager.getUserNickname(status.user_id, true);
                 SetUserNicknameDialogFragment.show(fm, status.user_id, nick);
                 break;
             }
-            case MENU_TRANSLATE: {
+            case R.id.translate: {
                 final ParcelableCredentials account
                         = ParcelableAccount.getCredentials(context, status.account_id);
                 if (isOfficialCredentials(context, account)) {
@@ -3611,8 +3716,8 @@ public final class Utils implements Constants {
                     try {
                         final String template = "http://translate.google.com/#%s|%s|%s";
                         final String sourceLang = "auto";
-                        final String targetLang = URLEncoder.encode(locale.getLanguage(), HTTP.UTF_8);
-                        final String text = URLEncoder.encode(status.text_unescaped, HTTP.UTF_8);
+                        final String targetLang = URLEncoder.encode(locale.getLanguage(), "UTF-8");
+                        final String text = URLEncoder.encode(status.text_unescaped, "UTF-8");
                         final Uri uri = Uri.parse(String.format(Locale.ROOT, template, sourceLang, targetLang, text));
                         final Intent intent = new Intent(Intent.ACTION_VIEW, uri);
                         intent.addCategory(Intent.CATEGORY_BROWSABLE);
@@ -3623,7 +3728,7 @@ public final class Utils implements Constants {
                 }
                 break;
             }
-            case MENU_OPEN_WITH_ACCOUNT: {
+            case R.id.open_with_account: {
                 final Intent intent = new Intent(INTENT_ACTION_SELECT_ACCOUNT);
                 intent.setClass(context, AccountSelectorActivity.class);
                 intent.putExtra(EXTRA_SINGLE_SELECTION, true);
@@ -3816,6 +3921,29 @@ public final class Utils implements Constants {
         return null;
     }
 
+    public static boolean isCustomConsumerKeySecret(String consumerKey, String consumerSecret) {
+        if (TextUtils.isEmpty(consumerKey) || TextUtils.isEmpty(consumerSecret)) return false;
+        return (!TWITTER_CONSUMER_KEY.equals(consumerKey) && !TWITTER_CONSUMER_SECRET.equals(consumerKey))
+                && (!TWITTER_CONSUMER_KEY_LEGACY.equals(consumerKey) && !TWITTER_CONSUMER_SECRET_LEGACY.equals(consumerSecret));
+    }
+
+    public static boolean isStreamingEnabled() {
+        return Boolean.parseBoolean("false");
+    }
+
+    public static int getErrorNo(Throwable t) {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.LOLLIPOP) return 0;
+        return UtilsL.getErrorNo(t);
+    }
+
+    public static boolean isOutOfMemory(Throwable ex) {
+        if (ex == null) return false;
+        final Throwable cause = ex.getCause();
+        if (cause == null || cause == ex) return false;
+        if (cause instanceof OutOfMemoryError) return true;
+        return isOutOfMemory(cause);
+    }
+
     static class UtilsL {
 
         @TargetApi(Build.VERSION_CODES.LOLLIPOP)
@@ -3826,6 +3954,15 @@ public final class Utils implements Constants {
             final Transition transition = inflater.inflateTransition(transitionRes);
             window.setSharedElementEnterTransition(transition);
             window.setSharedElementExitTransition(transition);
+        }
+
+        @TargetApi(Build.VERSION_CODES.LOLLIPOP)
+        public static int getErrorNo(Throwable t) {
+            if (Build.VERSION.SDK_INT < Build.VERSION_CODES.LOLLIPOP) return 0;
+            if (t instanceof ErrnoException) {
+                return ((ErrnoException) t).errno;
+            }
+            return 0;
         }
     }
 
@@ -3877,4 +4014,43 @@ public final class Utils implements Constants {
         }
     }
 
+    @Nullable
+    public static GeoLocation getCachedGeoLocation(Context context) {
+        final Location location = getCachedLocation(context);
+        if (location == null) return null;
+        return new GeoLocation(location.getLatitude(), location.getLongitude());
+    }
+
+    @Nullable
+    public static Location getCachedLocation(Context context) {
+        Location location = null;
+        final LocationManager lm = (LocationManager) context.getSystemService(Context.LOCATION_SERVICE);
+        if (lm == null) return null;
+        try {
+            location = lm.getLastKnownLocation(LocationManager.GPS_PROVIDER);
+        } catch (SecurityException ignore) {
+
+        }
+        if (location != null) return location;
+        try {
+            location = lm.getLastKnownLocation(LocationManager.NETWORK_PROVIDER);
+        } catch (SecurityException ignore) {
+
+        }
+        return location;
+    }
+
+    public static final String[] fileSizeUnits = {"bytes", "KB", "MB", "GB", "TB", "PB", "EB", "ZB", "YB"};
+
+    public static String calculateProperSize(double bytes) {
+        double value = bytes;
+        int index;
+        for (index = 0; index < fileSizeUnits.length; index++) {
+            if (value < 1024) {
+                break;
+            }
+            value = value / 1024;
+        }
+        return String.format("%.2f %s", value, fileSizeUnits[index]);
+    }
 }

@@ -48,10 +48,12 @@ import org.mariotaku.twidere.constant.SharedPreferenceConstants;
 import org.mariotaku.twidere.model.ParcelableAccount;
 import org.mariotaku.twidere.model.ParcelableCredentials;
 import org.mariotaku.twidere.model.ParcelableMedia;
+import org.mariotaku.twidere.model.RequestType;
 import org.mariotaku.twidere.util.MediaPreviewUtils;
 import org.mariotaku.twidere.util.SharedPreferencesWrapper;
 import org.mariotaku.twidere.util.TwidereLinkify;
 import org.mariotaku.twidere.util.TwitterAPIFactory;
+import org.mariotaku.twidere.util.UserAgentUtils;
 import org.mariotaku.twidere.util.Utils;
 
 import java.io.FileNotFoundException;
@@ -66,29 +68,29 @@ public class TwidereImageDownloader extends BaseImageDownloader implements Const
     private final Context mContext;
     private final SharedPreferencesWrapper mPreferences;
     private final boolean mUseThumbor;
+    private final String mUserAgent;
+    private final RestHttpClient mClient;
     private Thumbor mThumbor;
-    private RestHttpClient mClient;
-    private final boolean mFullImage;
+
     private final String mTwitterProfileImageSize;
 
-    public TwidereImageDownloader(final Context context, final boolean fullImage, final boolean useThumbor) {
+    public TwidereImageDownloader(final Context context, final RestHttpClient client, final boolean useThumbor) {
         super(context);
         mContext = context;
         mPreferences = SharedPreferencesWrapper.getInstance(context, SHARED_PREFERENCES_NAME,
                 Context.MODE_PRIVATE, SharedPreferenceConstants.class);
-        mFullImage = fullImage;
         mTwitterProfileImageSize = context.getString(R.string.profile_image_size);
         mUseThumbor = useThumbor;
+        mUserAgent = UserAgentUtils.getDefaultUserAgentString(context);
+        mClient = client;
         reloadConnectivitySettings();
-
     }
 
     public void reloadConnectivitySettings() {
-        mClient = TwitterAPIFactory.getDefaultHttpClient(mContext);
         if (mUseThumbor && mPreferences.getBoolean(KEY_THUMBOR_ENABLED)) {
             final String address = mPreferences.getString(KEY_THUMBOR_ADDRESS, null);
             final String securityKey = mPreferences.getString(KEY_THUMBOR_SECURITY_KEY, null);
-            if (URLUtil.isValidUrl(address)) {
+            if (address != null && URLUtil.isValidUrl(address)) {
                 if (TextUtils.isEmpty(securityKey)) {
                     mThumbor = Thumbor.create(address);
                 } else {
@@ -105,7 +107,7 @@ public class TwidereImageDownloader extends BaseImageDownloader implements Const
     @Override
     protected InputStream getStreamFromNetwork(final String uriString, final Object extras) throws IOException {
         if (uriString == null) return null;
-        final ParcelableMedia media = MediaPreviewUtils.getAllAvailableImage(uriString, mFullImage, mClient);
+        final ParcelableMedia media = MediaPreviewUtils.getAllAvailableImage(uriString, extras instanceof FullImageExtra, mClient);
         try {
             final String mediaUrl = media != null ? media.media_url : uriString;
             if (isTwitterProfileImage(uriString)) {
@@ -162,6 +164,7 @@ public class TwidereImageDownloader extends BaseImageDownloader implements Const
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.JELLY_BEAN_MR1) {
             additionalHeaders.add(Pair.create("Accept", "image/webp, */*"));
         }
+        additionalHeaders.add(Pair.create("User-Agent", mUserAgent));
         final String method = GET.METHOD;
         final String requestUri;
         if (auth != null && auth.hasAuthorization()) {
@@ -186,7 +189,12 @@ public class TwidereImageDownloader extends BaseImageDownloader implements Const
         } else {
             requestUri = modifiedUri.toString();
         }
-        final RestHttpResponse resp = mClient.execute(new RestHttpRequest.Builder().method(method).url(requestUri).headers(additionalHeaders).build());
+        final RestHttpRequest.Builder builder = new RestHttpRequest.Builder();
+        builder.method(method);
+        builder.url(requestUri);
+        builder.headers(additionalHeaders);
+        builder.extra(RequestType.MEDIA);
+        final RestHttpResponse resp = mClient.execute(builder.build());
         final TypedData body = resp.getBody();
         return new ContentLengthInputStream(body.stream(), (int) body.length());
     }

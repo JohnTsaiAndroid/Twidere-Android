@@ -29,6 +29,7 @@ import android.net.http.SslError;
 import android.os.AsyncTask;
 import android.os.Bundle;
 import android.support.annotation.NonNull;
+import android.util.Pair;
 import android.view.MenuItem;
 import android.view.View;
 import android.view.Window;
@@ -40,10 +41,10 @@ import android.webkit.WebViewClient;
 import android.widget.Toast;
 
 import org.mariotaku.restfu.http.Authorization;
-import org.mariotaku.restfu.http.Endpoint;
 import org.mariotaku.twidere.R;
 import org.mariotaku.twidere.api.twitter.TwitterOAuth;
 import org.mariotaku.twidere.api.twitter.auth.OAuthAuthorization;
+import org.mariotaku.twidere.api.twitter.auth.OAuthEndpoint;
 import org.mariotaku.twidere.api.twitter.auth.OAuthToken;
 import org.mariotaku.twidere.app.TwidereApplication;
 import org.mariotaku.twidere.provider.TwidereDataStore.Accounts;
@@ -90,7 +91,7 @@ public class BrowserSignInActivity extends BaseSupportDialogActivity {
     @Override
     public boolean onOptionsItemSelected(final MenuItem item) {
         switch (item.getItemId()) {
-            case MENU_HOME: {
+            case android.R.id.home: {
                 finish();
                 return true;
             }
@@ -237,7 +238,7 @@ public class BrowserSignInActivity extends BaseSupportDialogActivity {
                 consumerSecret = defConsumerSecret;
             }
             try {
-                final Endpoint endpoint = new Endpoint(TwitterAPIFactory.getApiUrl(DEFAULT_TWITTER_API_URL_FORMAT, "api", "oauth"));
+                final OAuthEndpoint endpoint = new OAuthEndpoint(TwitterAPIFactory.getApiUrl(DEFAULT_TWITTER_API_URL_FORMAT, "api", null));
                 final Authorization auth = new OAuthAuthorization(consumerKey, consumerSecret);
                 final TwitterOAuth twitter = TwitterAPIFactory.getInstance(mActivity, endpoint, auth, TwitterOAuth.class);
                 return twitter.getRequestToken(OAUTH_CALLBACK_OOB);
@@ -258,8 +259,8 @@ public class BrowserSignInActivity extends BaseSupportDialogActivity {
                 }
                 return;
             }
-            //TODO
-//            mActivity.loadUrl(data.getAuthorizationURL());
+            final OAuthEndpoint endpoint = new OAuthEndpoint(TwitterAPIFactory.getApiUrl(DEFAULT_TWITTER_API_URL_FORMAT, "api", null));
+            mActivity.loadUrl(endpoint.construct("/oauth/authorize", Pair.create("oauth_token", data.getOauthToken())));
         }
 
         @Override

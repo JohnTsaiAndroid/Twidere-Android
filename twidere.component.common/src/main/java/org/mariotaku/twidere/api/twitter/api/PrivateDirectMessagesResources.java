@@ -19,21 +19,31 @@
 
 package org.mariotaku.twidere.api.twitter.api;
 
+import org.mariotaku.restfu.annotation.method.GET;
 import org.mariotaku.restfu.annotation.method.POST;
 import org.mariotaku.restfu.annotation.param.Body;
 import org.mariotaku.restfu.annotation.param.Path;
+import org.mariotaku.restfu.annotation.param.Query;
 import org.mariotaku.restfu.http.BodyType;
 import org.mariotaku.twidere.api.twitter.TwitterException;
+import org.mariotaku.twidere.api.twitter.model.Paging;
+import org.mariotaku.twidere.api.twitter.model.PrivateDirectMessages;
+import org.mariotaku.twidere.api.twitter.model.ResponseCode;
 
 @SuppressWarnings("RedundantThrows")
 public interface PrivateDirectMessagesResources extends PrivateResources {
 
     @POST("/dm/conversation/{conversation_id}/delete.json")
     @Body(BodyType.FORM)
-    void destroyDirectMessagesConversation(@Path("conversation_id") String conversationId) throws TwitterException;
+    ResponseCode destroyDirectMessagesConversation(@Path("conversation_id") String conversationId) throws TwitterException;
 
     @POST("/dm/conversation/{account_id}-{user_id}/delete.json")
     @Body(BodyType.FORM)
-    void destroyDirectMessagesConversation(@Path("account_id") long accountId, @Path("user_id") long userId) throws TwitterException;
+    ResponseCode destroyDirectMessagesConversation(@Path("account_id") long accountId, @Path("user_id") long userId) throws TwitterException;
 
+    @GET("/dm/user_updates.json")
+    PrivateDirectMessages getUserUpdates(@Query Paging paging);
+
+    @GET("/dm/user_inbox.json")
+    PrivateDirectMessages getUserInbox(@Query Paging paging);
 }

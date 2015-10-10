@@ -22,7 +22,6 @@ package org.mariotaku.twidere.service;
 import android.app.IntentService;
 import android.app.Notification;
 import android.app.NotificationManager;
-import android.app.PendingIntent;
 import android.content.ComponentName;
 import android.content.ContentResolver;
 import android.content.ContentValues;
@@ -30,32 +29,41 @@ import android.content.Context;
 import android.content.Intent;
 import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
+import android.database.Cursor;
 import android.graphics.BitmapFactory;
 import android.net.Uri;
 import android.os.Handler;
 import android.os.Parcelable;
+import android.provider.BaseColumns;
 import android.support.v4.app.NotificationCompat;
 import android.support.v4.app.NotificationCompat.Builder;
+import android.text.TextUtils;
 import android.util.Log;
 import android.widget.Toast;
 
 import com.nostra13.universalimageloader.utils.IoUtils;
 import com.twitter.Extractor;
 
-import org.mariotaku.querybuilder.Expression;
 import org.mariotaku.restfu.http.ContentType;
 import org.mariotaku.restfu.http.mime.FileTypedData;
-import org.mariotaku.twidere.BuildConfig;
+import org.mariotaku.sqliteqb.library.Expression;
 import org.mariotaku.twidere.Constants;
 import org.mariotaku.twidere.R;
 import org.mariotaku.twidere.activity.MainActivity;
 import org.mariotaku.twidere.activity.MainHondaJOJOActivity;
+import org.mariotaku.twidere.api.twitter.Twitter;
+import org.mariotaku.twidere.api.twitter.TwitterException;
+import org.mariotaku.twidere.api.twitter.TwitterUpload;
+import org.mariotaku.twidere.api.twitter.model.MediaUploadResponse;
+import org.mariotaku.twidere.api.twitter.model.Status;
+import org.mariotaku.twidere.api.twitter.model.StatusUpdate;
+import org.mariotaku.twidere.api.twitter.model.UserMentionEntity;
 import org.mariotaku.twidere.app.TwidereApplication;
+import org.mariotaku.twidere.model.DraftItem;
 import org.mariotaku.twidere.model.MediaUploadResult;
 import org.mariotaku.twidere.model.ParcelableAccount;
 import org.mariotaku.twidere.model.ParcelableDirectMessage;
 import org.mariotaku.twidere.model.ParcelableLocation;
-import org.mariotaku.twidere.model.ParcelableMedia;
 import org.mariotaku.twidere.model.ParcelableMediaUpdate;
 import org.mariotaku.twidere.model.ParcelableStatus;
 import org.mariotaku.twidere.model.ParcelableStatusUpdate;
@@ -77,6 +85,8 @@ import org.mariotaku.twidere.util.StatusShortenerInterface;
 import org.mariotaku.twidere.util.TwidereValidator;
 import org.mariotaku.twidere.util.TwitterAPIFactory;
 import org.mariotaku.twidere.util.Utils;
+import org.mariotaku.twidere.util.dagger.ApplicationModule;
+import org.mariotaku.twidere.util.dagger.DaggerGeneralComponent;
 import org.mariotaku.twidere.util.io.ContentLengthInputStream;
 import org.mariotaku.twidere.util.io.ContentLengthInputStream.ReadListener;
 
@@ -88,15 +98,11 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 
-import edu.tsinghua.spice.Utilies.SpiceProfilingUtil;
-import edu.tsinghua.spice.Utilies.TypeMappingUtil;
-import org.mariotaku.twidere.api.twitter.model.MediaUploadResponse;
-import org.mariotaku.twidere.api.twitter.model.Status;
-import org.mariotaku.twidere.api.twitter.model.StatusUpdate;
-import org.mariotaku.twidere.api.twitter.Twitter;
-import org.mariotaku.twidere.api.twitter.TwitterException;
-import org.mariotaku.twidere.api.twitter.model.UserMentionEntity;
-import org.mariotaku.twidere.api.twitter.TwitterUpload;
+import javax.inject.Inject;
+
+import edu.tsinghua.hotmobi.HotMobiLogger;
+import edu.tsinghua.hotmobi.model.TimelineType;
+import edu.tsinghua.hotmobi.model.TweetEvent;
 
 import static android.text.TextUtils.isEmpty;
 import static org.mariotaku.twidere.util.ContentValuesCreator.createMessageDraft;
@@ -112,7 +118,8 @@ public class BackgroundOperationService extends IntentService implements Constan
     private SharedPreferences mPreferences;
     private ContentResolver mResolver;
     private NotificationManager mNotificationManager;
-    private AsyncTwitterWrapper mTwitter;
+    @Inject
+    AsyncTwitterWrapper mTwitter;
 
     private MediaUploaderInterface mUploader;
     private StatusShortenerInterface mShortener;
@@ -126,13 +133,13 @@ public class BackgroundOperationService extends IntentService implements Constan
     @Override
     public void onCreate() {
         super.onCreate();
+        DaggerGeneralComponent.builder().applicationModule(ApplicationModule.get(this)).build().inject(this);
         final TwidereApplication app = TwidereApplication.getInstance(this);
         mHandler = new Handler();
         mPreferences = getSharedPreferences(SHARED_PREFERENCES_NAME, MODE_PRIVATE);
         mValidator = new TwidereValidator(this);
         mResolver = getContentResolver();
         mNotificationManager = (NotificationManager) getSystemService(NOTIFICATION_SERVICE);
-        mTwitter = app.getTwitterWrapper();
         final String uploaderComponent = mPreferences.getString(KEY_MEDIA_UPLOADER, null);
         final String shortenerComponent = mPreferences.getString(KEY_STATUS_SHORTENER, null);
         mUseUploader = !ServicePickerPreference.isNoneValue(uploaderComponent);
@@ -194,7 +201,7 @@ public class BackgroundOperationService extends IntentService implements Constan
     protected void onHandleIntent(final Intent intent) {
         if (intent == null) return;
         final String action = intent.getAction();
-
+        if (action == null) return;
         switch (action) {
             case INTENT_ACTION_UPDATE_STATUS:
                 handleUpdateStatusIntent(intent);
@@ -205,6 +212,41 @@ public class BackgroundOperationService extends IntentService implements Constan
             case INTENT_ACTION_DISCARD_DRAFT:
                 handleDiscardDraftIntent(intent);
                 break;
+            case INTENT_ACTION_SEND_DRAFT: {
+                handleSendDraftIntent(intent);
+            }
+        }
+    }
+
+    private void handleSendDraftIntent(Intent intent) {
+        final Uri uri = intent.getData();
+        if (uri == null) return;
+        mNotificationManager.cancel(uri.toString(), NOTIFICATION_ID_DRAFTS);
+        final long draftId = ParseUtils.parseLong(uri.getLastPathSegment(), -1);
+        if (draftId == -1) return;
+        final Expression where = Expression.equals(Drafts._ID, draftId);
+        final ContentResolver cr = getContentResolver();
+        final Cursor c = cr.query(Drafts.CONTENT_URI, Drafts.COLUMNS, where.getSQL(), null, null);
+        if (c == null) return;
+        final DraftItem.CursorIndices i = new DraftItem.CursorIndices(c);
+        final DraftItem item;
+        try {
+            if (!c.moveToFirst()) return;
+            item = new DraftItem(c, i);
+        } finally {
+            c.close();
+        }
+        cr.delete(Drafts.CONTENT_URI, where.getSQL(), null);
+        if (item.action_type == Drafts.ACTION_UPDATE_STATUS || item.action_type <= 0) {
+            updateStatuses(new ParcelableStatusUpdate(this, item));
+        } else if (item.action_type == Drafts.ACTION_SEND_DIRECT_MESSAGE) {
+            final long recipientId = item.action_extras.optLong(EXTRA_RECIPIENT_ID);
+            if (item.account_ids == null || item.account_ids.length <= 0 || recipientId <= 0) {
+                return;
+            }
+            final long accountId = item.account_ids[0];
+            final String imageUri = item.media != null && item.media.length > 0 ? item.media[0].uri : null;
+            sendMessage(accountId, recipientId, item.text, imageUri);
         }
     }
 
@@ -212,39 +254,10 @@ public class BackgroundOperationService extends IntentService implements Constan
         final Uri data = intent.getData();
         if (data == null) return;
         mNotificationManager.cancel(data.toString(), NOTIFICATION_ID_DRAFTS);
-        final ContentResolver contentResolver = getContentResolver();
+        final ContentResolver cr = getContentResolver();
         final long id = ParseUtils.parseLong(data.getLastPathSegment(), -1);
         final Expression where = Expression.equals(Drafts._ID, id);
-        contentResolver.delete(Drafts.CONTENT_URI, where.getSQL(), null);
-    }
-
-    private Notification buildNotification(final String title, final String message, final int icon,
-                                           final Intent content_intent, final Intent deleteIntent) {
-        final NotificationCompat.Builder builder = new NotificationCompat.Builder(this);
-        builder.setTicker(message);
-        builder.setContentTitle(title);
-        builder.setContentText(message);
-        builder.setAutoCancel(true);
-        builder.setWhen(System.currentTimeMillis());
-        builder.setSmallIcon(icon);
-        if (deleteIntent != null) {
-            builder.setDeleteIntent(PendingIntent.getBroadcast(this, 0, deleteIntent,
-                    PendingIntent.FLAG_UPDATE_CURRENT));
-        }
-        if (content_intent != null) {
-            content_intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_EXCLUDE_FROM_RECENTS);
-            builder.setContentIntent(PendingIntent.getActivity(this, 0, content_intent,
-                    PendingIntent.FLAG_UPDATE_CURRENT));
-        }
-        // final Uri defRingtone =
-        // RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION);
-        // final String path =
-        // mPreferences.getString(PREFERENCE_KEY_NOTIFICATION_RINGTONE, "");
-        // builder.setSound(isEmpty(path) ? defRingtone : Uri.parse(path),
-        // Notification.STREAM_DEFAULT);
-        // builder.setLights(HOLO_BLUE_LIGHT, 1000, 2000);
-        // builder.setDefaults(Notification.DEFAULT_VIBRATE);
-        return builder.build();
+        cr.delete(Drafts.CONTENT_URI, where.getSQL(), null);
     }
 
     private void handleSendDirectMessageIntent(final Intent intent) {
@@ -252,9 +265,13 @@ public class BackgroundOperationService extends IntentService implements Constan
         final long recipientId = intent.getLongExtra(EXTRA_RECIPIENT_ID, -1);
         final String imageUri = intent.getStringExtra(EXTRA_IMAGE_URI);
         final String text = intent.getStringExtra(EXTRA_TEXT);
+        sendMessage(accountId, recipientId, text, imageUri);
+    }
+
+    private void sendMessage(long accountId, long recipientId, String text, String imageUri) {
         if (accountId <= 0 || recipientId <= 0 || isEmpty(text)) return;
         final String title = getString(R.string.sending_direct_message);
-        final NotificationCompat.Builder builder = new NotificationCompat.Builder(this);
+        final Builder builder = new Builder(this);
         builder.setSmallIcon(R.drawable.ic_stat_send);
         builder.setProgress(100, 0, true);
         builder.setTicker(title);
@@ -273,8 +290,6 @@ public class BackgroundOperationService extends IntentService implements Constan
             mResolver.delete(DirectMessages.Outbox.CONTENT_URI, delete_where, null);
             mResolver.insert(DirectMessages.Outbox.CONTENT_URI, values);
             showOkMessage(R.string.direct_message_sent, false);
-
-
         } else {
             final ContentValues values = createMessageDraft(accountId, recipientId, text, imageUri);
             mResolver.insert(Drafts.CONTENT_URI, values);
@@ -285,7 +300,6 @@ public class BackgroundOperationService extends IntentService implements Constan
     }
 
     private void handleUpdateStatusIntent(final Intent intent) {
-        final NotificationCompat.Builder builder = new NotificationCompat.Builder(this);
         final ParcelableStatusUpdate status = intent.getParcelableExtra(EXTRA_STATUS);
         final Parcelable[] status_parcelables = intent.getParcelableArrayExtra(EXTRA_STATUSES);
         final ParcelableStatusUpdate[] statuses;
@@ -299,6 +313,11 @@ public class BackgroundOperationService extends IntentService implements Constan
             statuses[0] = status;
         } else
             return;
+        updateStatuses(statuses);
+    }
+
+    private void updateStatuses(ParcelableStatusUpdate... statuses) {
+        final Builder builder = new Builder(this);
         startForeground(NOTIFICATION_ID_UPDATE_STATUS, updateUpdateStatusNotification(this, builder, 0, null));
         for (final ParcelableStatusUpdate item : statuses) {
             mNotificationManager.notify(NOTIFICATION_ID_UPDATE_STATUS,
@@ -306,7 +325,7 @@ public class BackgroundOperationService extends IntentService implements Constan
             final ContentValues draftValues = ContentValuesCreator.createStatusDraft(item,
                     ParcelableAccount.getAccountIds(item.accounts));
             final Uri draftUri = mResolver.insert(Drafts.CONTENT_URI, draftValues);
-            final long draftId = ParseUtils.parseLong(draftUri.getLastPathSegment(), -1);
+            final long draftId = draftUri != null ? ParseUtils.parseLong(draftUri.getLastPathSegment(), -1) : -1;
             mTwitter.addSendingDraftId(draftId);
             final List<SingleResponse<ParcelableStatus>> result = updateStatus(builder, item);
             boolean failed = false;
@@ -315,28 +334,19 @@ public class BackgroundOperationService extends IntentService implements Constan
             final List<Long> failedAccountIds = ListUtils.fromArray(ParcelableAccount.getAccountIds(item.accounts));
 
             for (final SingleResponse<ParcelableStatus> response : result) {
-
-                if (response.getData() == null) {
+                final ParcelableStatus data = response.getData();
+                if (data == null) {
                     failed = true;
                     if (exception == null) {
                         exception = response.getException();
                     }
-                } else if (response.getData().account_id > 0) {
-                    failedAccountIds.remove(response.getData().account_id);
-                    //spice
-                    if (response.getData().media == null) {
-                        SpiceProfilingUtil.log(response.getData().id + ",Tweet," + response.getData().account_id + ","
-                                + response.getData().in_reply_to_user_id + "," + response.getData().in_reply_to_status_id);
-                        SpiceProfilingUtil.profile(this.getBaseContext(), response.getData().account_id, response.getData().id + ",Tweet," + response.getData().account_id + ","
-                                + response.getData().in_reply_to_user_id + "," + response.getData().in_reply_to_status_id);
-                    } else
-                        for (final ParcelableMedia spiceMedia : response.getData().media) {
-                            SpiceProfilingUtil.log(response.getData().id + ",Media," + response.getData().account_id + ","
-                                    + response.getData().in_reply_to_user_id + "," + response.getData().in_reply_to_status_id + "," + spiceMedia.media_url + "," + TypeMappingUtil.getMediaType(spiceMedia.type));
-                            SpiceProfilingUtil.profile(this.getBaseContext(), response.getData().account_id, response.getData().id + ",Media," + response.getData().account_id + ","
-                                    + response.getData().in_reply_to_user_id + "," + response.getData().in_reply_to_status_id + "," + spiceMedia.media_url + "," + TypeMappingUtil.getMediaType(spiceMedia.type));
-                        }
-                    //end
+                } else if (data.account_id > 0) {
+                    failedAccountIds.remove(data.account_id);
+                    // BEGIN HotMobi
+                    final TweetEvent event = TweetEvent.create(this, data, TimelineType.OTHER);
+                    event.setAction(TweetEvent.Action.TWEET);
+                    HotMobiLogger.getInstance(this).log(data.account_id, event);
+                    // END HotMobi
                 }
             }
 
@@ -353,7 +363,9 @@ public class BackgroundOperationService extends IntentService implements Constan
                     accountIdsValues.put(Drafts.ACCOUNT_IDS, ListUtils.toString(failedAccountIds, ',', false));
                     mResolver.update(Drafts.CONTENT_URI, accountIdsValues, where.getSQL(), null);
                     showErrorMessage(R.string.action_updating_status, exception, true);
-                    displayTweetNotSendNotification();
+                    final ContentValues notifValues = new ContentValues();
+                    notifValues.put(BaseColumns._ID, draftId);
+                    mResolver.insert(Drafts.CONTENT_URI_NOTIFICATIONS, notifValues);
                 }
             } else {
                 showOkMessage(R.string.status_updated, false);
@@ -383,18 +395,6 @@ public class BackgroundOperationService extends IntentService implements Constan
         mNotificationManager.cancel(NOTIFICATION_ID_UPDATE_STATUS);
     }
 
-    private void displayTweetNotSendNotification() {
-        final String title = getString(R.string.status_not_updated);
-        final String message = getString(R.string.status_not_updated_summary);
-        final Intent intent = new Intent();
-        intent.setPackage(BuildConfig.APPLICATION_ID);
-        final Uri.Builder builder = new Uri.Builder();
-        builder.scheme(SCHEME_TWIDERE);
-        builder.authority(AUTHORITY_DRAFTS);
-        intent.setData(builder.build());
-        final Notification notification = buildNotification(title, message, R.drawable.ic_stat_twitter, intent, null);
-        mNotificationManager.notify(NOTIFICATION_ID_DRAFTS, notification);
-    }
 
     private SingleResponse<ParcelableDirectMessage> sendDirectMessage(final NotificationCompat.Builder builder,
                                                                       final long accountId, final long recipientId,
@@ -543,13 +543,20 @@ public class BackgroundOperationService extends IntentService implements Constan
                             is = new ContentLengthInputStream(file);
                             is.setReadListener(new StatusMediaUploadListener(this, mNotificationManager, builder,
                                     statusUpdate));
-                            final MediaUploadResponse uploadResp = upload.uploadMedia(
-                                    new FileTypedData(is, file.getName(), file.length(), ContentType.parse(o.outMimeType)));
+                            final ContentType contentType;
+                            if (TextUtils.isEmpty(o.outMimeType)) {
+                                contentType = ContentType.parse("image/*");
+                            } else {
+                                contentType = ContentType.parse(o.outMimeType);
+                            }
+                            final MediaUploadResponse uploadResp = upload.uploadMedia(new FileTypedData(is,
+                                    file.getName(), file.length(), contentType));
                             mediaIds[i] = uploadResp.getId();
                         }
                     } catch (final FileNotFoundException e) {
                         Log.w(LOGTAG, e);
                     } catch (final TwitterException e) {
+                        Log.w(LOGTAG, e);
                         final SingleResponse<ParcelableStatus> response = SingleResponse.getInstance(e);
                         results.add(response);
                         continue;
@@ -561,7 +568,7 @@ public class BackgroundOperationService extends IntentService implements Constan
                 status.possiblySensitive(statusUpdate.is_possibly_sensitive);
 
                 if (twitter == null) {
-                    results.add(new SingleResponse<ParcelableStatus>(null, new NullPointerException()));
+                    results.add(SingleResponse.<ParcelableStatus>getInstance(new NullPointerException()));
                     continue;
                 }
                 try {
@@ -582,13 +589,15 @@ public class BackgroundOperationService extends IntentService implements Constan
                         }
                     }
                     final ParcelableStatus result = new ParcelableStatus(resultStatus, account.account_id, false);
-                    results.add(new SingleResponse<>(result, null));
+                    results.add(SingleResponse.getInstance(result));
                 } catch (final TwitterException e) {
+                    Log.w(LOGTAG, e);
                     final SingleResponse<ParcelableStatus> response = SingleResponse.getInstance(e);
                     results.add(response);
                 }
             }
         } catch (final UpdateStatusException e) {
+            Log.w(LOGTAG, e);
             final SingleResponse<ParcelableStatus> response = SingleResponse.getInstance(e);
             results.add(response);
         }

@@ -20,9 +20,9 @@
 package org.mariotaku.twidere.fragment.support;
 
 import android.app.ActionBar;
-import android.app.Activity;
 import android.content.ContentResolver;
 import android.content.ContentValues;
+import android.content.Context;
 import android.content.Intent;
 import android.graphics.Rect;
 import android.os.Bundle;
@@ -106,9 +106,9 @@ public class SearchFragment extends BaseSupportFragment implements RefreshScroll
     }
 
     @Override
-    public boolean handleKeyboardShortcutSingle(@NonNull KeyboardShortcutsHandler handler, int keyCode, @NonNull KeyEvent event) {
-        if (handleFragmentKeyboardShortcutSingle(handler, keyCode, event)) return true;
-        final String action = handler.getKeyAction(CONTEXT_TAG_NAVIGATION, keyCode, event);
+    public boolean handleKeyboardShortcutSingle(@NonNull KeyboardShortcutsHandler handler, int keyCode, @NonNull KeyEvent event, int metaState) {
+        if (handleFragmentKeyboardShortcutSingle(handler, keyCode, event, metaState)) return true;
+        final String action = handler.getKeyAction(CONTEXT_TAG_NAVIGATION, keyCode, event, metaState);
         if (action != null) {
             switch (action) {
                 case ACTION_NAVIGATION_PREVIOUS_TAB: {
@@ -127,22 +127,26 @@ public class SearchFragment extends BaseSupportFragment implements RefreshScroll
                 }
             }
         }
-        return handler.handleKey(getActivity(), null, keyCode, event);
+        return handler.handleKey(getActivity(), null, keyCode, event, metaState);
     }
 
     @Override
-    public boolean handleKeyboardShortcutRepeat(@NonNull KeyboardShortcutsHandler handler, int keyCode, int repeatCount, @NonNull KeyEvent event) {
-        return handleFragmentKeyboardShortcutRepeat(handler, keyCode, repeatCount, event);
-    }
-
-    public void hideIndicator() {
+    public boolean isKeyboardShortcutHandled(@NonNull KeyboardShortcutsHandler handler, int keyCode, @NonNull KeyEvent event, int metaState) {
+        if (isFragmentKeyboardShortcutHandled(handler, keyCode, event, metaState)) return true;
+        final String action = handler.getKeyAction(CONTEXT_TAG_NAVIGATION, keyCode, event, metaState);
+        return ACTION_NAVIGATION_PREVIOUS_TAB.equals(action) || ACTION_NAVIGATION_NEXT_TAB.equals(action);
     }
 
     @Override
-    public void onAttach(Activity activity) {
-        super.onAttach(activity);
-        if (activity instanceof IControlBarActivity) {
-            ((IControlBarActivity) activity).registerControlBarOffsetListener(this);
+    public boolean handleKeyboardShortcutRepeat(@NonNull KeyboardShortcutsHandler handler, int keyCode, int repeatCount, @NonNull KeyEvent event, int metaState) {
+        return handleFragmentKeyboardShortcutRepeat(handler, keyCode, repeatCount, event, metaState);
+    }
+
+    @Override
+    public void onAttach(Context context) {
+        super.onAttach(context);
+        if (context instanceof IControlBarActivity) {
+            ((IControlBarActivity) context).registerControlBarOffsetListener(this);
         }
     }
 
@@ -211,22 +215,23 @@ public class SearchFragment extends BaseSupportFragment implements RefreshScroll
 
     @Override
     public void onPrepareOptionsMenu(Menu menu) {
-        final MenuItem item = menu.findItem(MENU_COMPOSE);
+        if (isDetached() || getActivity() == null) return;
+        final MenuItem item = menu.findItem(R.id.compose);
         item.setTitle(getString(R.string.tweet_hashtag, getQuery()));
     }
 
     @Override
     public boolean onOptionsItemSelected(final MenuItem item) {
         switch (item.getItemId()) {
-            case MENU_SAVE: {
-                final AsyncTwitterWrapper twitter = getTwitterWrapper();
+            case R.id.save: {
+                final AsyncTwitterWrapper twitter = mTwitterWrapper;
                 final Bundle args = getArguments();
                 if (twitter != null && args != null) {
                     twitter.createSavedSearchAsync(getAccountId(), getQuery());
                 }
                 return true;
             }
-            case MENU_COMPOSE: {
+            case R.id.compose: {
                 final Intent intent = new Intent(getActivity(), ComposeActivity.class);
                 intent.setAction(INTENT_ACTION_COMPOSE);
                 intent.putExtra(Intent.EXTRA_TEXT, String.format("#%s ", getQuery()));
@@ -315,18 +320,32 @@ public class SearchFragment extends BaseSupportFragment implements RefreshScroll
         return getCurrentVisibleFragment();
     }
 
-    private boolean handleFragmentKeyboardShortcutRepeat(KeyboardShortcutsHandler handler, int keyCode, int repeatCount, @NonNull KeyEvent event) {
+    private boolean handleFragmentKeyboardShortcutRepeat(KeyboardShortcutsHandler handler, int keyCode,
+                                                         int repeatCount, @NonNull KeyEvent event, int metaState) {
         final Fragment fragment = getKeyboardShortcutRecipient();
         if (fragment instanceof KeyboardShortcutCallback) {
-            return ((KeyboardShortcutCallback) fragment).handleKeyboardShortcutRepeat(handler, keyCode, repeatCount, event);
+            return ((KeyboardShortcutCallback) fragment).handleKeyboardShortcutRepeat(handler, keyCode,
+                    repeatCount, event, metaState);
         }
         return false;
     }
 
-    private boolean handleFragmentKeyboardShortcutSingle(KeyboardShortcutsHandler handler, int keyCode, @NonNull KeyEvent event) {
+    private boolean handleFragmentKeyboardShortcutSingle(KeyboardShortcutsHandler handler, int keyCode,
+                                                         @NonNull KeyEvent event, int metaState) {
         final Fragment fragment = getKeyboardShortcutRecipient();
         if (fragment instanceof KeyboardShortcutCallback) {
-            return ((KeyboardShortcutCallback) fragment).handleKeyboardShortcutSingle(handler, keyCode, event);
+            return ((KeyboardShortcutCallback) fragment).handleKeyboardShortcutSingle(handler, keyCode,
+                    event, metaState);
+        }
+        return false;
+    }
+
+    private boolean isFragmentKeyboardShortcutHandled(KeyboardShortcutsHandler handler, int keyCode,
+                                                      @NonNull KeyEvent event, int metaState) {
+        final Fragment fragment = getKeyboardShortcutRecipient();
+        if (fragment instanceof KeyboardShortcutCallback) {
+            return ((KeyboardShortcutCallback) fragment).isKeyboardShortcutHandled(handler, keyCode,
+                    event, metaState);
         }
         return false;
     }

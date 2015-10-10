@@ -249,6 +249,7 @@ public interface SharedPreferenceConstants {
     @Preference(type = STRING, hasDefault = true, defaultString = TwidereConstants.TWITTER_CONSUMER_SECRET)
     String KEY_CONSUMER_SECRET = "consumer_secret";
     String KEY_SETTINGS_WIZARD_COMPLETED = "settings_wizard_completed";
+    String KEY_CONSUMER_KEY_SECRET_SET = "consumer_key_secret_set";
     @Preference(type = BOOLEAN, hasDefault = true, defaultBoolean = true)
     String KEY_CARD_ANIMATION = "card_animation";
     @Preference(type = BOOLEAN, hasDefault = true, defaultBoolean = true)
@@ -304,4 +305,8 @@ public interface SharedPreferenceConstants {
     String KEY_THUMBOR_SECURITY_KEY = "thumbor_security_key";
     @Preference(type = BOOLEAN, hasDefault = true, defaultBoolean = false)
     String KEY_HIDE_CARD_ACTIONS = "hide_card_actions";
+    @Preference(type = INT, hasDefault = true, defaultInt = 300)
+    String KEY_CACHE_SIZE_LIMIT = "cache_size_limit";
+    @Preference(type = BOOLEAN, hasDefault = true, defaultBoolean = true)
+    String KEY_BUG_REPORTS = "bug_reports";
 }

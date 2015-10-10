@@ -22,7 +22,6 @@ package org.mariotaku.twidere.util;
 import android.content.Context;
 import android.util.SparseIntArray;
 
-import org.apache.http.HttpStatus;
 import org.mariotaku.twidere.R;
 
 public class StatusCodeMessageUtils {
@@ -45,6 +44,7 @@ public class StatusCodeMessageUtils {
         TWITTER_ERROR_CODE_MESSAGES.put(130, R.string.error_twitter_130);
         TWITTER_ERROR_CODE_MESSAGES.put(131, R.string.error_twitter_131);
         TWITTER_ERROR_CODE_MESSAGES.put(135, R.string.error_twitter_135);
+        TWITTER_ERROR_CODE_MESSAGES.put(136, R.string.error_twitter_136);
         TWITTER_ERROR_CODE_MESSAGES.put(139, R.string.error_twitter_139);
         TWITTER_ERROR_CODE_MESSAGES.put(161, R.string.error_twitter_161);
         TWITTER_ERROR_CODE_MESSAGES.put(162, R.string.error_twitter_162);
@@ -53,7 +53,8 @@ public class StatusCodeMessageUtils {
         TWITTER_ERROR_CODE_MESSAGES.put(STATUS_IS_DUPLICATE, R.string.error_twitter_187);
         TWITTER_ERROR_CODE_MESSAGES.put(193, R.string.error_twitter_193);
         TWITTER_ERROR_CODE_MESSAGES.put(215, R.string.error_twitter_215);
-        HTTP_STATUS_CODE_MESSAGES.put(HttpStatus.SC_PROXY_AUTHENTICATION_REQUIRED, R.string.error_http_407);
+
+        HTTP_STATUS_CODE_MESSAGES.put(407, R.string.error_http_407);
     }
 
     public static boolean containsHttpStatus(final int code) {

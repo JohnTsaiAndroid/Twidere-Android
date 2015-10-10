@@ -50,7 +50,6 @@ import android.widget.TextView;
 
 import org.mariotaku.twidere.R;
 import org.mariotaku.twidere.activity.KeyboardShortcutPreferenceCompatActivity;
-import org.mariotaku.twidere.app.TwidereApplication;
 import org.mariotaku.twidere.constant.KeyboardShortcutConstants;
 import org.mariotaku.twidere.util.KeyboardShortcutsHandler;
 import org.mariotaku.twidere.util.KeyboardShortcutsHandler.KeyboardShortcutSpec;
@@ -60,14 +59,11 @@ import org.mariotaku.twidere.util.KeyboardShortcutsHandler.KeyboardShortcutSpec;
  */
 public class KeyboardShortcutsFragment extends BasePreferenceFragment implements KeyboardShortcutConstants {
 
-    private KeyboardShortcutsHandler mKeyboardShortcutHandler;
-
     @Override
     public void onActivityCreated(Bundle savedInstanceState) {
         super.onActivityCreated(savedInstanceState);
         setHasOptionsMenu(true);
         final Activity activity = getActivity();
-        mKeyboardShortcutHandler = TwidereApplication.getInstance(activity).getKeyboardShortcutsHandler();
         final PreferenceScreen defaultScreen = getPreferenceScreen();
         final PreferenceScreen preferenceScreen;
         if (defaultScreen != null) {
@@ -88,7 +84,7 @@ public class KeyboardShortcutsFragment extends BasePreferenceFragment implements
     @Override
     public boolean onOptionsItemSelected(MenuItem item) {
         switch (item.getItemId()) {
-            case MENU_RESET: {
+            case R.id.reset: {
                 final DialogFragment f = new ResetKeyboardShortcutConfirmDialogFragment();
                 f.show(getFragmentManager().beginTransaction(), "reset_keyboard_shortcut_confirm");
                 return true;
@@ -107,6 +103,8 @@ public class KeyboardShortcutsFragment extends BasePreferenceFragment implements
         final PreferenceCategory navigation = makeAndAddCategory(getString(R.string.navigation));
         navigation.addPreference(makePreferences(CONTEXT_TAG_NAVIGATION, ACTION_NAVIGATION_PREVIOUS));
         navigation.addPreference(makePreferences(CONTEXT_TAG_NAVIGATION, ACTION_NAVIGATION_NEXT));
+        navigation.addPreference(makePreferences(CONTEXT_TAG_NAVIGATION, ACTION_NAVIGATION_PAGE_DOWN));
+        navigation.addPreference(makePreferences(CONTEXT_TAG_NAVIGATION, ACTION_NAVIGATION_PAGE_UP));
         navigation.addPreference(makePreferences(CONTEXT_TAG_NAVIGATION, ACTION_NAVIGATION_PREVIOUS_TAB));
         navigation.addPreference(makePreferences(CONTEXT_TAG_NAVIGATION, ACTION_NAVIGATION_NEXT_TAB));
         navigation.addPreference(makePreferences(CONTEXT_TAG_NAVIGATION, ACTION_NAVIGATION_REFRESH));
@@ -145,6 +143,7 @@ public class KeyboardShortcutsFragment extends BasePreferenceFragment implements
         private final OnSharedPreferenceChangeListener mPreferencesChangeListener;
         private TextView mKeysLabel, mConflictLabel;
         private KeyboardShortcutSpec mKeySpec;
+        private int mModifierStates;
 
         public KeyboardShortcutPreference(final Context context, final KeyboardShortcutsHandler handler,
                                           @Nullable final String contextTag, @NonNull final String action) {
@@ -168,8 +167,18 @@ public class KeyboardShortcutsFragment extends BasePreferenceFragment implements
 
         @Override
         public boolean onKey(DialogInterface dialog, int keyCode, KeyEvent event) {
-            if (event.getAction() != KeyEvent.ACTION_UP) return false;
-            final KeyboardShortcutSpec spec = KeyboardShortcutsHandler.getKeyboardShortcutSpec(mContextTag, keyCode, event);
+            if (event.getAction() == KeyEvent.ACTION_DOWN) {
+                if (KeyEvent.isModifierKey(keyCode)) {
+                    mModifierStates |= KeyboardShortcutsHandler.getMetaStateForKeyCode(keyCode);
+                }
+            } else if (event.getAction() != KeyEvent.ACTION_UP) {
+                return false;
+            }
+            if (KeyEvent.isModifierKey(keyCode)) {
+                mModifierStates &= ~KeyboardShortcutsHandler.getMetaStateForKeyCode(keyCode);
+            }
+            final KeyboardShortcutSpec spec = KeyboardShortcutsHandler.getKeyboardShortcutSpec(mContextTag,
+                    keyCode, event, KeyEvent.normalizeMetaState(mModifierStates | event.getMetaState()));
             if (spec == null || !spec.isValid()) {
                 Log.d(LOGTAG, String.format("Invalid key %s", event), new Exception());
                 return false;
@@ -299,13 +308,12 @@ public class KeyboardShortcutsFragment extends BasePreferenceFragment implements
 
     }
 
-    public static class ResetKeyboardShortcutConfirmDialogFragment extends DialogFragment implements OnClickListener {
+    public static class ResetKeyboardShortcutConfirmDialogFragment extends BaseDialogFragment implements OnClickListener {
         @Override
         public void onClick(DialogInterface dialog, int which) {
             switch (which) {
                 case DialogInterface.BUTTON_POSITIVE: {
-                    TwidereApplication app = TwidereApplication.getInstance(getActivity());
-                    app.getKeyboardShortcutsHandler().reset();
+                    mKeyboardShortcutsHandler.reset();
                     break;
                 }
             }

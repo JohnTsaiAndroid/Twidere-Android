@@ -31,62 +31,41 @@ import android.database.sqlite.SQLiteOpenHelper;
 import android.os.AsyncTask;
 import android.os.Handler;
 import android.support.annotation.NonNull;
-import android.support.annotation.Nullable;
 import android.support.multidex.MultiDexApplication;
 
 import com.nostra13.universalimageloader.cache.disc.DiskCache;
-import com.nostra13.universalimageloader.cache.disc.impl.UnlimitedDiscCache;
-import com.nostra13.universalimageloader.core.ImageLoader;
-import com.nostra13.universalimageloader.core.ImageLoaderConfiguration;
-import com.nostra13.universalimageloader.core.assist.QueueProcessingType;
-import com.nostra13.universalimageloader.core.download.ImageDownloader;
-import com.nostra13.universalimageloader.utils.L;
+import com.nostra13.universalimageloader.cache.disc.impl.ext.LruDiskCache;
 import com.squareup.okhttp.internal.Network;
-import com.squareup.otto.Bus;
 
-import org.acra.ACRA;
 import org.acra.annotation.ReportsCrashes;
-import org.acra.sender.HttpSender;
 import org.mariotaku.twidere.BuildConfig;
 import org.mariotaku.twidere.Constants;
 import org.mariotaku.twidere.activity.AssistLauncherActivity;
 import org.mariotaku.twidere.activity.MainActivity;
 import org.mariotaku.twidere.activity.MainHondaJOJOActivity;
 import org.mariotaku.twidere.service.RefreshService;
-import org.mariotaku.twidere.util.AsyncTaskManager;
-import org.mariotaku.twidere.util.AsyncTwitterWrapper;
+import org.mariotaku.twidere.util.AbsLogger;
 import org.mariotaku.twidere.util.DebugModeUtils;
-import org.mariotaku.twidere.util.ErrorLogger;
-import org.mariotaku.twidere.util.KeyboardShortcutsHandler;
-import org.mariotaku.twidere.util.MediaLoaderWrapper;
-import org.mariotaku.twidere.util.MultiSelectManager;
-import org.mariotaku.twidere.util.ReadStateManager;
+import org.mariotaku.twidere.util.MathUtils;
 import org.mariotaku.twidere.util.StrictModeUtils;
-import org.mariotaku.twidere.util.UserAgentUtils;
-import org.mariotaku.twidere.util.UserColorNameManager;
+import org.mariotaku.twidere.util.TwidereLogger;
 import org.mariotaku.twidere.util.Utils;
-import org.mariotaku.twidere.util.VideoLoader;
 import org.mariotaku.twidere.util.content.TwidereSQLiteOpenHelper;
-import org.mariotaku.twidere.util.imageloader.TwidereImageDownloader;
+import org.mariotaku.twidere.util.dagger.ApplicationModule;
+import org.mariotaku.twidere.util.imageloader.ReadOnlyDiskLRUNameCache;
 import org.mariotaku.twidere.util.imageloader.URLFileNameGenerator;
-import org.mariotaku.twidere.util.net.TwidereHostAddressResolver;
+import org.mariotaku.twidere.util.net.TwidereNetwork;
 
 import java.io.File;
+import java.io.IOException;
 
-import edu.tsinghua.spice.SpiceService;
-
-import static org.mariotaku.twidere.util.Utils.getBestCacheDir;
 import static org.mariotaku.twidere.util.Utils.getInternalCacheDir;
 import static org.mariotaku.twidere.util.Utils.initAccountColor;
 import static org.mariotaku.twidere.util.Utils.startRefreshServiceIfNeeded;
-import static org.mariotaku.twidere.util.Utils.startUsageStatisticsServiceIfNeeded;
 
-@ReportsCrashes(formUri = "https://mariotaku.cloudant.com/acra-twidere/_design/acra-storage/_update/report",
-        reportType = HttpSender.Type.JSON,
-        httpMethod = HttpSender.Method.PUT,
-        formUriBasicAuthLogin = "membeentlyposedistderryb",
-        formUriBasicAuthPassword = "oYETEB0KXUThmyXketa8V4XY",
-        buildConfigClass = BuildConfig.class)
+@ReportsCrashes(formUri = "https://twidere-bugreport.herokuapp.com/reports",
+        buildConfigClass = BuildConfig.class, sendReportsInDevMode = false,
+        sendReportsAtShutdown = false)
 public class TwidereApplication extends MultiDexApplication implements Constants,
         OnSharedPreferenceChangeListener {
 
@@ -95,37 +74,17 @@ public class TwidereApplication extends MultiDexApplication implements Constants
     private static final String KEY_KEYBOARD_SHORTCUT_INITIALIZED = "keyboard_shortcut_initialized";
 
     private Handler mHandler;
-    private MediaLoaderWrapper mMediaLoaderWrapper;
-    private ImageLoader mImageLoader;
-    private AsyncTaskManager mAsyncTaskManager;
     private SharedPreferences mPreferences;
-    private AsyncTwitterWrapper mTwitterWrapper;
-    private MultiSelectManager mMultiSelectManager;
-    private TwidereImageDownloader mImageDownloader, mFullImageDownloader;
     private DiskCache mDiskCache, mFullDiskCache;
     private SQLiteOpenHelper mSQLiteOpenHelper;
     private Network mNetwork;
     private SQLiteDatabase mDatabase;
-    private Bus mMessageBus;
-    private VideoLoader mVideoLoader;
-    private ReadStateManager mReadStateManager;
-    private KeyboardShortcutsHandler mKeyboardShortcutsHandler;
-    private UserColorNameManager mUserColorNameManager;
 
-    private String mDefaultUserAgent;
+    private ApplicationModule mApplicationModule;
 
     @NonNull
     public static TwidereApplication getInstance(@NonNull final Context context) {
         return (TwidereApplication) context.getApplicationContext();
-    }
-
-    public AsyncTaskManager getAsyncTaskManager() {
-        if (mAsyncTaskManager != null) return mAsyncTaskManager;
-        return mAsyncTaskManager = AsyncTaskManager.getInstance();
-    }
-
-    public String getDefaultUserAgent() {
-        return mDefaultUserAgent;
     }
 
     public DiskCache getDiskCache() {
@@ -138,15 +97,6 @@ public class TwidereApplication extends MultiDexApplication implements Constants
         return mFullDiskCache = createDiskCache(DIR_NAME_FULL_IMAGE_CACHE);
     }
 
-    public UserColorNameManager getUserColorNameManager() {
-        if (mUserColorNameManager != null) return mUserColorNameManager;
-        return mUserColorNameManager = new UserColorNameManager(this);
-    }
-
-    public ImageDownloader getFullImageDownloader() {
-        if (mFullImageDownloader != null) return mFullImageDownloader;
-        return mFullImageDownloader = new TwidereImageDownloader(this, true, true);
-    }
 
     public Handler getHandler() {
         return mHandler;
@@ -154,65 +104,17 @@ public class TwidereApplication extends MultiDexApplication implements Constants
 
     public Network getNetwork() {
         if (mNetwork != null) return mNetwork;
-        return mNetwork = new TwidereHostAddressResolver(this);
+        return mNetwork = new TwidereNetwork(this);
     }
 
-    public ReadStateManager getReadStateManager() {
-        if (mReadStateManager != null) return mReadStateManager;
-        return mReadStateManager = new ReadStateManager(this);
-    }
-
-    public KeyboardShortcutsHandler getKeyboardShortcutsHandler() {
-        if (mKeyboardShortcutsHandler != null) return mKeyboardShortcutsHandler;
-        mKeyboardShortcutsHandler = new KeyboardShortcutsHandler(this);
+    public void initKeyboardShortcuts() {
         final SharedPreferences preferences = getSharedPreferences();
         if (!preferences.getBoolean(KEY_KEYBOARD_SHORTCUT_INITIALIZED, false)) {
-            mKeyboardShortcutsHandler.reset();
+            getApplicationModule().getKeyboardShortcutsHandler().reset();
             preferences.edit().putBoolean(KEY_KEYBOARD_SHORTCUT_INITIALIZED, true).apply();
         }
-        return mKeyboardShortcutsHandler;
     }
 
-    public ImageDownloader getImageDownloader() {
-        if (mImageDownloader != null) return mImageDownloader;
-        return mImageDownloader = new TwidereImageDownloader(this, false, true);
-    }
-
-    public ImageLoader getImageLoader() {
-        if (mImageLoader != null) return mImageLoader;
-        final ImageLoader loader = ImageLoader.getInstance();
-        final ImageLoaderConfiguration.Builder cb = new ImageLoaderConfiguration.Builder(this);
-        cb.threadPriority(Thread.NORM_PRIORITY - 2);
-        cb.denyCacheImageMultipleSizesInMemory();
-        cb.tasksProcessingOrder(QueueProcessingType.LIFO);
-        // cb.memoryCache(new ImageMemoryCache(40));
-        cb.diskCache(getDiskCache());
-        cb.imageDownloader(getImageDownloader());
-        L.writeDebugLogs(BuildConfig.DEBUG);
-        loader.init(cb.build());
-        return mImageLoader = loader;
-    }
-
-    public VideoLoader getVideoLoader() {
-        if (mVideoLoader != null) return mVideoLoader;
-        final VideoLoader loader = new VideoLoader(this);
-        return mVideoLoader = loader;
-    }
-
-    public MediaLoaderWrapper getMediaLoaderWrapper() {
-        if (mMediaLoaderWrapper != null) return mMediaLoaderWrapper;
-        return mMediaLoaderWrapper = new MediaLoaderWrapper(getImageLoader(), getVideoLoader());
-    }
-
-    @Nullable
-    public Bus getMessageBus() {
-        return mMessageBus;
-    }
-
-    public MultiSelectManager getMultiSelectManager() {
-        if (mMultiSelectManager != null) return mMultiSelectManager;
-        return mMultiSelectManager = new MultiSelectManager();
-    }
 
     public SQLiteDatabase getSQLiteDatabase() {
         if (mDatabase != null) return mDatabase;
@@ -225,11 +127,6 @@ public class TwidereApplication extends MultiDexApplication implements Constants
         return mSQLiteOpenHelper = new TwidereSQLiteOpenHelper(this, DATABASES_NAME, DATABASES_VERSION);
     }
 
-    public AsyncTwitterWrapper getTwitterWrapper() {
-        if (mTwitterWrapper != null) return mTwitterWrapper;
-        return mTwitterWrapper = new AsyncTwitterWrapper(this);
-    }
-
     @Override
     public void onCreate() {
         if (BuildConfig.DEBUG) {
@@ -238,9 +135,7 @@ public class TwidereApplication extends MultiDexApplication implements Constants
         super.onCreate();
         initDebugMode();
         initBugReport();
-        mDefaultUserAgent = UserAgentUtils.getDefaultUserAgentString(this);
         mHandler = new Handler();
-        mMessageBus = new Bus();
         initializeAsyncTask();
         initAccountColor(this);
 
@@ -264,7 +159,6 @@ public class TwidereApplication extends MultiDexApplication implements Constants
         }
 
         migrateUsageStatisticsPreferences();
-        startUsageStatisticsServiceIfNeeded(this);
         startRefreshServiceIfNeeded(this);
 
         reloadConnectivitySettings();
@@ -275,8 +169,10 @@ public class TwidereApplication extends MultiDexApplication implements Constants
     }
 
     private void initBugReport() {
-        ACRA.init(this);
-        ErrorLogger.setEnabled(BuildConfig.DEBUG);
+        final SharedPreferences preferences = getSharedPreferences();
+        if (!preferences.getBoolean(KEY_BUG_REPORTS, true)) return;
+        AbsLogger.setImplementation(new TwidereLogger());
+        AbsLogger.init(this);
     }
 
     private void migrateUsageStatisticsPreferences() {
@@ -302,10 +198,14 @@ public class TwidereApplication extends MultiDexApplication implements Constants
     }
 
     @Override
+    public void onTrimMemory(int level) {
+        super.onTrimMemory(level);
+    }
+
+    @Override
     public void onLowMemory() {
-        if (mMediaLoaderWrapper != null) {
-            mMediaLoaderWrapper.clearMemoryCache();
-        }
+        final ApplicationModule module = getApplicationModule();
+        module.onLowMemory();
         super.onLowMemory();
     }
 
@@ -317,11 +217,6 @@ public class TwidereApplication extends MultiDexApplication implements Constants
         } else if (KEY_ENABLE_PROXY.equals(key) || KEY_CONNECTION_TIMEOUT.equals(key) || KEY_PROXY_HOST.equals(key)
                 || KEY_PROXY_PORT.equals(key)) {
             reloadConnectivitySettings();
-        } else if (KEY_USAGE_STATISTICS.equals(key)) {
-            //spice
-            stopService(new Intent(this, SpiceService.class));
-            startUsageStatisticsServiceIfNeeded(this);
-            //end
         } else if (KEY_CONSUMER_KEY.equals(key) || KEY_CONSUMER_SECRET.equals(key) || KEY_API_URL_FORMAT.equals(key)
                 || KEY_AUTH_TYPE.equals(key) || KEY_SAME_OAUTH_SIGNING_URL.equals(key) || KEY_THUMBOR_ENABLED.equals(key)
                 || KEY_THUMBOR_ADDRESS.equals(key) || KEY_THUMBOR_SECURITY_KEY.equals(key)) {
@@ -332,22 +227,23 @@ public class TwidereApplication extends MultiDexApplication implements Constants
     }
 
     public void reloadConnectivitySettings() {
-        if (mImageDownloader != null) {
-            mImageDownloader.reloadConnectivitySettings();
-        }
-        if (mFullImageDownloader != null) {
-            mFullImageDownloader.reloadConnectivitySettings();
-        }
+        getApplicationModule().reloadConnectivitySettings();
     }
 
     private DiskCache createDiskCache(final String dirName) {
-        final File cacheDir = getBestCacheDir(this, dirName);
+        final File cacheDir = Utils.getExternalCacheDir(this, dirName);
         final File fallbackCacheDir = getInternalCacheDir(this, dirName);
-//        final LruDiscCache discCache = new LruDiscCache(cacheDir, new URLFileNameGenerator(), 384 *
-//                1024 * 1024);
-//        discCache.setReserveCacheDir(fallbackCacheDir);
-//        return discCache;
-        return new UnlimitedDiscCache(cacheDir, fallbackCacheDir, new URLFileNameGenerator());
+        final URLFileNameGenerator fileNameGenerator = new URLFileNameGenerator();
+        final SharedPreferences preferences = getSharedPreferences();
+        final int cacheSize = MathUtils.clamp(preferences.getInt(KEY_CACHE_SIZE_LIMIT, 300), 100, 500);
+        try {
+            final int cacheMaxSizeBytes = cacheSize * 1024 * 1024;
+            if (cacheDir != null)
+                return new LruDiskCache(cacheDir, fallbackCacheDir, fileNameGenerator, cacheMaxSizeBytes, 0);
+            return new LruDiskCache(fallbackCacheDir, null, fileNameGenerator, cacheMaxSizeBytes, 0);
+        } catch (IOException e) {
+            return new ReadOnlyDiskLRUNameCache(cacheDir, fallbackCacheDir, fileNameGenerator);
+        }
     }
 
     private void initializeAsyncTask() {
@@ -357,6 +253,11 @@ public class TwidereApplication extends MultiDexApplication implements Constants
             Class.forName(AsyncTask.class.getName());
         } catch (final ClassNotFoundException ignore) {
         }
+    }
+
+    public ApplicationModule getApplicationModule() {
+        if (mApplicationModule != null) return mApplicationModule;
+        return mApplicationModule = new ApplicationModule(this);
     }
 
 }

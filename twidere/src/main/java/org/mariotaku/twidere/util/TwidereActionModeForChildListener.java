@@ -21,12 +21,12 @@ package org.mariotaku.twidere.util;
 
 import android.app.Activity;
 import android.content.Context;
+import android.graphics.Rect;
 import android.support.v4.view.ViewCompat;
 import android.support.v7.app.AppCompatCallback;
 import android.support.v7.internal.view.StandaloneActionMode;
 import android.support.v7.internal.view.SupportActionModeWrapper;
 import android.support.v7.internal.widget.ActionBarContextView;
-import android.support.v7.internal.widget.NativeActionModeAwareLayout;
 import android.support.v7.view.ActionMode;
 import android.util.TypedValue;
 import android.view.Gravity;
@@ -38,19 +38,18 @@ import android.view.Window;
 import android.view.accessibility.AccessibilityEvent;
 import android.widget.PopupWindow;
 
-import org.mariotaku.twidere.R;
 import org.mariotaku.twidere.activity.iface.IThemedActivity;
+import org.mariotaku.twidere.fragment.iface.IBaseFragment;
+import org.mariotaku.twidere.view.TintedStatusNativeActionModeAwareLayout;
 
 /**
  * Created by mariotaku on 15/4/27.
  */
-public class TwidereActionModeForChildListener implements NativeActionModeAwareLayout.OnActionModeForChildListener {
+public class TwidereActionModeForChildListener implements TintedStatusNativeActionModeAwareLayout.OnActionModeForChildListener {
     private final Activity mActivity;
     private final IThemedActivity mThemed;
     private final AppCompatCallback mAppCompatCallback;
     private final Window mWindow;
-    private final boolean mIsFloating;
-    private final boolean mUsePopup;
 
     private ActionMode mActionMode;
     public ActionBarContextView mActionModeView;
@@ -62,8 +61,6 @@ public class TwidereActionModeForChildListener implements NativeActionModeAwareL
         mThemed = activity;
         mWindow = mActivity.getWindow();
         mAppCompatCallback = callback;
-        mIsFloating = ThemeUtils.isWindowFloating(mActivity, activity.getCurrentThemeResourceId());
-        mUsePopup = usePopup;
     }
 
     @Override
@@ -104,39 +101,36 @@ public class TwidereActionModeForChildListener implements NativeActionModeAwareL
         final ActionMode.Callback wrappedCallback = new ActionModeCallbackWrapper(callback);
 
         if (mActionModeView == null) {
-            if (mIsFloating && mUsePopup) {
-                // Use the action bar theme.
-                final Context actionBarContext;
-                actionBarContext = ThemeUtils.getActionBarThemedContext(mActivity, mThemed.getCurrentThemeResourceId(),
-                        mThemed.getCurrentThemeColor());
+            // Use the action bar theme.
+            final Context actionBarContext;
+            actionBarContext = ThemeUtils.getActionBarThemedContext(mActivity, mThemed.getCurrentThemeResourceId(),
+                    mThemed.getCurrentThemeColor());
 
-                mActionModeView = new ActionBarContextView(actionBarContext);
-                mActionModePopup = new PopupWindow(actionBarContext, null,
-                        android.support.v7.appcompat.R.attr.actionModePopupWindowStyle);
-                mActionModePopup.setContentView(mActionModeView);
-                mActionModePopup.setWidth(ViewGroup.LayoutParams.MATCH_PARENT);
+            mActionModeView = new ActionBarContextView(actionBarContext);
+            mActionModePopup = new PopupWindow(actionBarContext, null,
+                    android.support.v7.appcompat.R.attr.actionModePopupWindowStyle);
+            mActionModePopup.setContentView(mActionModeView);
+            mActionModePopup.setWidth(ViewGroup.LayoutParams.MATCH_PARENT);
 
-                final TypedValue outValue = new TypedValue();
-                actionBarContext.getTheme().resolveAttribute(
-                        android.support.v7.appcompat.R.attr.actionBarSize, outValue, true);
-                final int height = TypedValue.complexToDimensionPixelSize(outValue.data,
-                        actionBarContext.getResources().getDisplayMetrics());
-                mActionModeView.setContentHeight(height);
-                ThemeUtils.setActionBarContextViewBackground(mActionModeView,
-                        mThemed.getCurrentThemeResourceId(), mThemed.getCurrentThemeColor(),
-                        mThemed.getCurrentThemeBackgroundOption(), false);
-                mActionModePopup.setHeight(ViewGroup.LayoutParams.WRAP_CONTENT);
-                mShowActionModePopup = new Runnable() {
-                    @Override
-                    public void run() {
-                        mActionModePopup.showAtLocation(
-                                mWindow.getDecorView(),
-                                Gravity.TOP | Gravity.FILL_HORIZONTAL, 0, 0);
-                    }
-                };
-            } else {
-                mActionModeView = (ActionBarContextView) mWindow.findViewById(R.id.action_context_bar);
-            }
+            final TypedValue outValue = new TypedValue();
+            actionBarContext.getTheme().resolveAttribute(
+                    android.support.v7.appcompat.R.attr.actionBarSize, outValue, true);
+            final int height = TypedValue.complexToDimensionPixelSize(outValue.data,
+                    actionBarContext.getResources().getDisplayMetrics());
+            mActionModeView.setContentHeight(height);
+            ThemeUtils.setActionBarContextViewBackground(mActionModeView,
+                    mThemed.getCurrentThemeResourceId(), mThemed.getCurrentThemeColor(),
+                    mThemed.getCurrentThemeBackgroundOption(), false);
+            mActionModePopup.setHeight(ViewGroup.LayoutParams.WRAP_CONTENT);
+            final int actionModeOffset = getActionModeOffset();
+            mShowActionModePopup = new Runnable() {
+                @Override
+                public void run() {
+                    mActionModePopup.showAtLocation(
+                            mWindow.getDecorView(),
+                            Gravity.TOP | Gravity.FILL_HORIZONTAL, 0, actionModeOffset);
+                }
+            };
         }
 
         if (mActionModeView != null) {
@@ -166,6 +160,16 @@ public class TwidereActionModeForChildListener implements NativeActionModeAwareL
             mAppCompatCallback.onSupportActionModeStarted(mActionMode);
         }
         return mActionMode;
+    }
+
+    private int getActionModeOffset() {
+        if (mActivity instanceof IBaseFragment.SystemWindowsInsetsCallback) {
+            final Rect insets = new Rect();
+            if (((IBaseFragment.SystemWindowsInsetsCallback) mActivity).getSystemWindowsInsets(insets)) {
+                return Utils.getInsetsTopWithoutActionBarHeight(mActivity, insets.top);
+            }
+        }
+        return 0;
     }
 
     public boolean finishExisting() {

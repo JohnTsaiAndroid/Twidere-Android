@@ -27,17 +27,26 @@ import android.support.annotation.NonNull;
 import android.view.KeyEvent;
 import android.view.MenuItem;
 
+import com.squareup.otto.Bus;
+
 import org.mariotaku.twidere.Constants;
+import org.mariotaku.twidere.R;
 import org.mariotaku.twidere.activity.iface.IControlBarActivity;
 import org.mariotaku.twidere.app.TwidereApplication;
 import org.mariotaku.twidere.fragment.iface.IBaseFragment.SystemWindowsInsetsCallback;
+import org.mariotaku.twidere.util.ActivityTracker;
 import org.mariotaku.twidere.util.AsyncTwitterWrapper;
 import org.mariotaku.twidere.util.KeyboardShortcutsHandler;
 import org.mariotaku.twidere.util.KeyboardShortcutsHandler.KeyboardShortcutCallback;
+import org.mariotaku.twidere.util.ReadStateManager;
 import org.mariotaku.twidere.util.ThemeUtils;
+import org.mariotaku.twidere.util.dagger.ApplicationModule;
+import org.mariotaku.twidere.util.dagger.DaggerGeneralComponent;
 import org.mariotaku.twidere.view.iface.IExtendedView.OnFitSystemWindowsListener;
 
 import java.util.ArrayList;
+
+import javax.inject.Inject;
 
 @SuppressLint("Registered")
 public class BaseAppCompatActivity extends ThemedAppCompatActivity implements Constants,
@@ -45,7 +54,16 @@ public class BaseAppCompatActivity extends ThemedAppCompatActivity implements Co
         KeyboardShortcutCallback {
 
     // Utility classes
-    private KeyboardShortcutsHandler mKeyboardShortcutsHandler;
+    @Inject
+    protected KeyboardShortcutsHandler mKeyboardShortcutsHandler;
+    @Inject
+    protected ActivityTracker mActivityTracker;
+    @Inject
+    protected AsyncTwitterWrapper mTwitterWrapper;
+    @Inject
+    protected ReadStateManager mReadStateManager;
+    @Inject
+    protected Bus mBus;
 
     // Registered listeners
     private ArrayList<ControlBarOffsetListener> mControlBarOffsetListeners = new ArrayList<>();
@@ -54,6 +72,7 @@ public class BaseAppCompatActivity extends ThemedAppCompatActivity implements Co
     private boolean mInstanceStateSaved;
     private boolean mIsVisible;
     private Rect mSystemWindowsInsets;
+    private int mMetaState;
 
     @Override
     public boolean getSystemWindowsInsets(Rect insets) {
@@ -76,10 +95,6 @@ public class BaseAppCompatActivity extends ThemedAppCompatActivity implements Co
         return (TwidereApplication) getApplication();
     }
 
-    public AsyncTwitterWrapper getTwitterWrapper() {
-        return getTwidereApplication() != null ? getTwidereApplication().getTwitterWrapper() : null;
-    }
-
     public boolean isVisible() {
         return mIsVisible;
     }
@@ -96,21 +111,28 @@ public class BaseAppCompatActivity extends ThemedAppCompatActivity implements Co
 
     @Override
     public boolean onKeyUp(int keyCode, @NonNull KeyEvent event) {
-        if (handleKeyboardShortcutSingle(mKeyboardShortcutsHandler, keyCode, event)) return true;
-        return super.onKeyUp(keyCode, event);
+        if (KeyEvent.isModifierKey(keyCode)) {
+            mMetaState &= ~KeyboardShortcutsHandler.getMetaStateForKeyCode(keyCode);
+        }
+        if (handleKeyboardShortcutSingle(mKeyboardShortcutsHandler, keyCode, event, mMetaState))
+            return true;
+        return isKeyboardShortcutHandled(mKeyboardShortcutsHandler, keyCode, event, mMetaState) || super.onKeyUp(keyCode, event);
     }
 
     @Override
     public boolean onKeyDown(int keyCode, KeyEvent event) {
-        if (handleKeyboardShortcutRepeat(mKeyboardShortcutsHandler, keyCode, event.getRepeatCount(), event))
+        if (KeyEvent.isModifierKey(keyCode)) {
+            mMetaState |= KeyboardShortcutsHandler.getMetaStateForKeyCode(keyCode);
+        }
+        if (handleKeyboardShortcutRepeat(mKeyboardShortcutsHandler, keyCode, event.getRepeatCount(), event, mMetaState))
             return true;
-        return super.onKeyDown(keyCode, event);
+        return isKeyboardShortcutHandled(mKeyboardShortcutsHandler, keyCode, event, mMetaState) || super.onKeyDown(keyCode, event);
     }
 
     @Override
     public boolean onOptionsItemSelected(final MenuItem item) {
         switch (item.getItemId()) {
-            case MENU_BACK: {
+            case R.id.back: {
                 onBackPressed();
                 return true;
             }
@@ -124,25 +146,31 @@ public class BaseAppCompatActivity extends ThemedAppCompatActivity implements Co
     }
 
     @Override
-    public boolean handleKeyboardShortcutSingle(@NonNull KeyboardShortcutsHandler handler, int keyCode, @NonNull KeyEvent event) {
+    public boolean handleKeyboardShortcutSingle(@NonNull KeyboardShortcutsHandler handler, int keyCode, @NonNull KeyEvent event, int metaState) {
         return false;
     }
 
     @Override
-    public boolean handleKeyboardShortcutRepeat(@NonNull KeyboardShortcutsHandler handler, int keyCode, int repeatCount, @NonNull KeyEvent event) {
+    public boolean isKeyboardShortcutHandled(@NonNull KeyboardShortcutsHandler handler, int keyCode, @NonNull KeyEvent event, int metaState) {
+        return false;
+    }
+
+    @Override
+    public boolean handleKeyboardShortcutRepeat(@NonNull KeyboardShortcutsHandler handler, int keyCode, int repeatCount, @NonNull KeyEvent event, int metaState) {
         return false;
     }
 
     @Override
     protected void onCreate(final Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        mKeyboardShortcutsHandler = TwidereApplication.getInstance(this).getKeyboardShortcutsHandler();
+        DaggerGeneralComponent.builder().applicationModule(ApplicationModule.get(this)).build().inject(this);
     }
 
 
     @Override
     protected void onStart() {
         super.onStart();
+        mActivityTracker.dispatchStart(this);
         mIsVisible = true;
     }
 
@@ -171,6 +199,7 @@ public class BaseAppCompatActivity extends ThemedAppCompatActivity implements Co
     @Override
     protected void onStop() {
         mIsVisible = false;
+        mActivityTracker.dispatchStop(this);
         super.onStop();
     }
 
@@ -181,6 +210,11 @@ public class BaseAppCompatActivity extends ThemedAppCompatActivity implements Co
 
     @Override
     public void setControlBarVisibleAnimate(boolean visible) {
+
+    }
+
+    @Override
+    public void setControlBarVisibleAnimate(boolean visible, ControlBarShowHideHelper.ControlBarAnimationListener listener) {
 
     }
 

@@ -49,20 +49,20 @@ public class HomeTimelineFragment extends CursorStatusesFragment {
 
     @Override
     protected void updateRefreshState() {
-        final AsyncTwitterWrapper twitter = getTwitterWrapper();
+        final AsyncTwitterWrapper twitter = mTwitterWrapper;
         if (twitter == null) return;
         setRefreshing(twitter.isHomeTimelineRefreshing());
     }
 
     @Override
     public boolean isRefreshing() {
-        final AsyncTwitterWrapper twitter = getTwitterWrapper();
+        final AsyncTwitterWrapper twitter = mTwitterWrapper;
         return twitter != null && twitter.isHomeTimelineRefreshing();
     }
 
     @Override
     public boolean getStatuses(long[] accountIds, long[] maxIds, long[] sinceIds) {
-        final AsyncTwitterWrapper twitter = getTwitterWrapper();
+        final AsyncTwitterWrapper twitter = mTwitterWrapper;
         if (twitter == null) return false;
         if (maxIds == null) return twitter.refreshAll(accountIds);
         return twitter.getHomeTimelineAsync(accountIds, maxIds, sinceIds);
@@ -74,7 +74,10 @@ public class HomeTimelineFragment extends CursorStatusesFragment {
         final FragmentActivity activity = getActivity();
         if (isVisibleToUser && activity != null) {
             final NotificationManager nm = (NotificationManager) activity.getSystemService(Context.NOTIFICATION_SERVICE);
-            nm.cancel(NOTIFICATION_ID_HOME_TIMELINE);
+            for (long accountId : getAccountIds()) {
+                final String tag = "home_" + accountId;
+                nm.cancel(tag, NOTIFICATION_ID_HOME_TIMELINE);
+            }
         }
     }
 

@@ -19,7 +19,7 @@
 
 package org.mariotaku.twidere.adapter;
 
-import android.support.v7.widget.RecyclerView.Adapter;
+import android.content.Context;
 import android.support.v7.widget.RecyclerView.ViewHolder;
 
 import org.mariotaku.twidere.adapter.iface.ILoadMoreSupportAdapter;
@@ -27,11 +27,15 @@ import org.mariotaku.twidere.adapter.iface.ILoadMoreSupportAdapter;
 /**
  * Created by mariotaku on 15/4/16.
  */
-public abstract class LoadMoreSupportAdapter<VH extends ViewHolder> extends Adapter<VH>
+public abstract class LoadMoreSupportAdapter<VH extends ViewHolder> extends BaseRecyclerViewAdapter<VH>
         implements ILoadMoreSupportAdapter {
 
     private boolean mLoadMoreSupported;
     private boolean mLoadMoreIndicatorVisible;
+
+    public LoadMoreSupportAdapter(Context context) {
+        super(context);
+    }
 
     @Override
     public final boolean isLoadMoreIndicatorVisible() {

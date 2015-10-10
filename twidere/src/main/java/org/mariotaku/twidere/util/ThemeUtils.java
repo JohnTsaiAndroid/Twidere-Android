@@ -32,6 +32,7 @@ import android.os.Build;
 import android.support.annotation.NonNull;
 import android.support.annotation.Nullable;
 import android.support.v4.app.FragmentActivity;
+import android.support.v4.graphics.ColorUtils;
 import android.support.v4.view.ViewCompat;
 import android.support.v7.app.ActionBar;
 import android.support.v7.internal.app.WindowDecorActionBar;
@@ -58,6 +59,7 @@ import android.view.View;
 import android.view.View.OnLongClickListener;
 import android.view.Window;
 import android.view.WindowManager;
+import android.widget.FrameLayout;
 import android.widget.ImageView;
 import android.widget.TextView;
 
@@ -79,16 +81,15 @@ import java.lang.reflect.Field;
 public class ThemeUtils implements Constants {
 
     public static final int ACCENT_COLOR_THRESHOLD = 192;
-
-    private static final int[] ANIM_OPEN_STYLE_ATTRS = {android.R.attr.activityOpenEnterAnimation,
-            android.R.attr.activityOpenExitAnimation};
-    private static final int[] ANIM_CLOSE_STYLE_ATTRS = {android.R.attr.activityCloseEnterAnimation,
-            android.R.attr.activityCloseExitAnimation};
     public static final int[] ATTRS_TEXT_COLOR_PRIMARY = {android.R.attr.textColorPrimary};
     public static final int[] ATTRS_TEXT_COLOR_PRIMARY_AND_INVERSE = {android.R.attr.textColorPrimary,
             android.R.attr.textColorPrimaryInverse};
     public static final int[] ATTRS_COLOR_FOREGROUND_AND_INVERSE = {android.R.attr.colorForeground,
             android.R.attr.colorForegroundInverse};
+    private static final int[] ANIM_OPEN_STYLE_ATTRS = {android.R.attr.activityOpenEnterAnimation,
+            android.R.attr.activityOpenExitAnimation};
+    private static final int[] ANIM_CLOSE_STYLE_ATTRS = {android.R.attr.activityCloseEnterAnimation,
+            android.R.attr.activityCloseExitAnimation};
 
     private ThemeUtils() {
         throw new AssertionError();
@@ -284,7 +285,7 @@ public class ThemeUtils implements Constants {
         if (!(view instanceof ActionBarOverlayLayout)) {
             final View contentLayout = window.findViewById(android.support.v7.appcompat.R.id.action_bar_activity_content);
             if (contentLayout instanceof ContentFrameLayout) {
-                return ((ContentFrameLayout) contentLayout).getForeground();
+                return contentLayout.getForeground();
             }
             return null;
         }
@@ -350,7 +351,8 @@ public class ThemeUtils implements Constants {
     }
 
     public static int getDrawerThemeResource(final int themeRes) {
-        return R.style.Theme_Twidere_Drawer_Dark;
+        if (isDarkTheme(themeRes)) return R.style.Theme_Twidere_Drawer_Dark;
+        return R.style.Theme_Twidere_Drawer_Light;
     }
 
     public static Drawable getImageHighlightDrawable(final Context context) {
@@ -369,9 +371,9 @@ public class ThemeUtils implements Constants {
         return R.style.Theme_Twidere_Light_NoDisplay;
     }
 
-    public static int getOptimalLinkColor(int linkColor, int color) {
+    public static int getOptimalLinkColor(int linkColor, int textColor) {
         final int[] yiq = new int[3];
-        TwidereColorUtils.colorToYIQ(color, yiq);
+        TwidereColorUtils.colorToYIQ(textColor, yiq);
         final int y = yiq[0];
         TwidereColorUtils.colorToYIQ(linkColor, yiq);
         if (y < 32 && yiq[0] <= ACCENT_COLOR_THRESHOLD) {
@@ -445,6 +447,18 @@ public class ThemeUtils implements Constants {
         }
     }
 
+
+    public static void getColorsFromAttribute(final Context context, int[] inAttrs, int[] outColors) {
+        final TypedArray a = context.obtainStyledAttributes(inAttrs);
+        try {
+            for (int i = 0, j = inAttrs.length; i < j; i++) {
+                outColors[i] = a.getColor(i, 0);
+            }
+        } finally {
+            a.recycle();
+        }
+    }
+
     public static void getTextColorPrimaryAndInverse(final Context context, int[] colors) {
         final TypedArray a = context.obtainStyledAttributes(ATTRS_TEXT_COLOR_PRIMARY_AND_INVERSE);
         try {
@@ -464,6 +478,23 @@ public class ThemeUtils implements Constants {
             } else {
                 colors[0] = a.getColor(0, Color.WHITE);
                 colors[1] = a.getColor(1, Color.BLACK);
+            }
+        } finally {
+            a.recycle();
+        }
+    }
+
+    public static void getDarkLightForegroundColors(final Context context, int[] colors) {
+        final TypedArray a = context.obtainStyledAttributes(ATTRS_COLOR_FOREGROUND_AND_INVERSE);
+        try {
+            final int foreground = a.getColor(0, 0), background = a.getColor(1, 0);
+
+            if (ColorUtils.calculateLuminance(foreground) > ColorUtils.calculateLuminance(background)) {
+                colors[0] = background;
+                colors[1] = foreground;
+            } else {
+                colors[0] = foreground;
+                colors[1] = background;
             }
         } finally {
             a.recycle();
@@ -544,14 +575,24 @@ public class ThemeUtils implements Constants {
         return getThemeForegroundColor(context, 0);
     }
 
-    public static int getThemeForegroundColor(final Context context, int theme) {
+    public static int getThemeForegroundColor(final Context context, int themeRes) {
         @SuppressWarnings("ConstantConditions")
-        final TypedArray a = context.obtainStyledAttributes(null, new int[]{android.R.attr.colorForeground}, 0, theme);
-        try {
-            return a.getColor(0, 0);
-        } finally {
-            a.recycle();
+        final TypedValue value = new TypedValue();
+        final Resources.Theme theme;
+        if (themeRes != 0) {
+            theme = context.getResources().newTheme();
+            theme.applyStyle(themeRes, false);
+        } else {
+            theme = context.getTheme();
         }
+        if (!theme.resolveAttribute(android.R.attr.colorForeground, value, true)) {
+            return 0;
+        }
+        if (value.type >= TypedValue.TYPE_FIRST_COLOR_INT && value.type <= TypedValue.TYPE_LAST_COLOR_INT) {
+            // windowBackground is a color
+            return value.data;
+        }
+        return 0;
     }
 
     public static String getThemeNameOption(final Context context) {
@@ -694,20 +735,11 @@ public class ThemeUtils implements Constants {
         final TypedArray a = context.obtainStyledAttributes(null, new int[]{android.R.attr.windowBackground}, 0, theme);
         final Drawable d = a.getDrawable(0);
         a.recycle();
-        if (d != null) {
-            d.setAlpha(MathUtils.clamp(alpha, ThemeBackgroundPreference.MIN_ALPHA,
-                    ThemeBackgroundPreference.MAX_ALPHA));
-        }
+        if (d == null) return null;
+        d.mutate();
+        d.setAlpha(MathUtils.clamp(alpha, ThemeBackgroundPreference.MIN_ALPHA,
+                ThemeBackgroundPreference.MAX_ALPHA));
         return d;
-    }
-
-    public static Drawable getWindowContentOverlay(final Context context) {
-        final TypedArray a = context.obtainStyledAttributes(new int[]{android.R.attr.windowContentOverlay});
-        try {
-            return a.getDrawable(0);
-        } finally {
-            a.recycle();
-        }
     }
 
     public static Drawable getWindowContentOverlay(final Context context, int themeRes) {
@@ -947,8 +979,8 @@ public class ThemeUtils implements Constants {
         if (contentLayout == null) {
             contentLayout = window.findViewById(android.R.id.content);
         }
-        if (contentLayout instanceof ContentFrameLayout) {
-            ((ContentFrameLayout) contentLayout).setForeground(overlay);
+        if (contentLayout instanceof FrameLayout) {
+            ViewSupport.setForeground(contentLayout, overlay);
         }
     }
 
@@ -970,11 +1002,12 @@ public class ThemeUtils implements Constants {
         final int alpha = ((IThemedActivity) context).getCurrentThemeBackgroundAlpha();
         final Drawable d;
         if (isSolidBackground(backgroundOption)) {
-            d = new ColorDrawable(Color.BLACK);
+            d = new ColorDrawable(isDarkTheme(themeRes) ? Color.BLACK : Color.WHITE);
         } else {
             d = getWindowBackgroundFromTheme(context, drawerThemeRes);
         }
         if (d == null) throw new NullPointerException();
+        d.mutate();
         if (isTransparentBackground(backgroundOption)) {
             d.setAlpha(alpha);
         }
@@ -1115,18 +1148,18 @@ public class ThemeUtils implements Constants {
         return VALUE_THEME_NAME_DARK.equals(name);
     }
 
-    public static final class ActionBarContextThemeWrapper extends android.support.v7.internal.view.ContextThemeWrapper {
-
-        public ActionBarContextThemeWrapper(Context base, int themeres) {
-            super(base, themeres);
-        }
-    }
-
     public static int getActionBarThemeResource(int themeId, int accentColor) {
         if (isDarkTheme(themeId) || TwidereColorUtils.getYIQLuminance(accentColor) <= ACCENT_COLOR_THRESHOLD) {
             return R.style.Theme_Twidere_Dark;
         } else {
             return R.style.Theme_Twidere_Light;
+        }
+    }
+
+    public static final class ActionBarContextThemeWrapper extends android.support.v7.internal.view.ContextThemeWrapper {
+
+        public ActionBarContextThemeWrapper(Context base, int themeres) {
+            super(base, themeres);
         }
     }
 }

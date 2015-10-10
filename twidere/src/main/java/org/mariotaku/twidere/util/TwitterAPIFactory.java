@@ -9,9 +9,11 @@ import android.support.annotation.NonNull;
 import android.support.annotation.Nullable;
 import android.text.TextUtils;
 import android.util.Pair;
+import android.webkit.URLUtil;
 
 import com.squareup.okhttp.OkHttpClient;
 import com.squareup.okhttp.internal.Internal;
+import com.squareup.okhttp.internal.Network;
 
 import org.mariotaku.restfu.ExceptionFactory;
 import org.mariotaku.restfu.HttpRequestFactory;
@@ -20,6 +22,7 @@ import org.mariotaku.restfu.RestAPIFactory;
 import org.mariotaku.restfu.RestMethodInfo;
 import org.mariotaku.restfu.RestRequestInfo;
 import org.mariotaku.restfu.annotation.RestMethod;
+import org.mariotaku.restfu.annotation.param.MethodExtra;
 import org.mariotaku.restfu.http.Authorization;
 import org.mariotaku.restfu.http.Endpoint;
 import org.mariotaku.restfu.http.FileValue;
@@ -40,9 +43,10 @@ import org.mariotaku.twidere.api.twitter.auth.OAuthAuthorization;
 import org.mariotaku.twidere.api.twitter.auth.OAuthEndpoint;
 import org.mariotaku.twidere.api.twitter.auth.OAuthToken;
 import org.mariotaku.twidere.api.twitter.util.TwitterConverter;
-import org.mariotaku.twidere.app.TwidereApplication;
 import org.mariotaku.twidere.model.ConsumerKeyType;
 import org.mariotaku.twidere.model.ParcelableCredentials;
+import org.mariotaku.twidere.model.RequestType;
+import org.mariotaku.twidere.util.dagger.ApplicationModule;
 import org.mariotaku.twidere.util.net.OkHttpRestClient;
 
 import java.net.InetSocketAddress;
@@ -50,11 +54,14 @@ import java.net.Proxy;
 import java.net.SocketAddress;
 import java.nio.charset.Charset;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+
+import javax.net.ssl.SSLSocketFactory;
 
 import static android.text.TextUtils.isEmpty;
 
@@ -96,28 +103,44 @@ public class TwitterAPIFactory implements TwidereConstants {
     }
 
     public static RestHttpClient getDefaultHttpClient(final Context context) {
-        if (context == null) return null;
-        final SharedPreferencesWrapper prefs = SharedPreferencesWrapper.getInstance(context, SHARED_PREFERENCES_NAME, Context.MODE_PRIVATE);
-        return createHttpClient(context, prefs);
+        return getDefaultHttpClient(context, ApplicationModule.get(context).getNetwork());
     }
 
-    public static RestHttpClient createHttpClient(final Context context, final SharedPreferences prefs) {
+    public static RestHttpClient getDefaultHttpClient(final Context context, final Network network) {
+        if (context == null || network == null) return null;
+        final SharedPreferencesWrapper prefs = SharedPreferencesWrapper.getInstance(context, SHARED_PREFERENCES_NAME, Context.MODE_PRIVATE);
+        return createHttpClient(context, network, prefs);
+    }
+
+    public static RestHttpClient createHttpClient(final Context context, final Network network, final SharedPreferences prefs) {
+        final OkHttpClient client = new OkHttpClient();
+        updateHttpClientConfiguration(prefs, client);
+        Internal.instance.setNetwork(client, network);
+        return new OkHttpRestClient(context, client);
+    }
+
+    public static void updateHttpClientConfiguration(final SharedPreferences prefs, final OkHttpClient client) {
         final int connectionTimeout = prefs.getInt(KEY_CONNECTION_TIMEOUT, 10);
         final boolean ignoreSslError = prefs.getBoolean(KEY_IGNORE_SSL_ERROR, false);
         final boolean enableProxy = prefs.getBoolean(KEY_ENABLE_PROXY, false);
 
-        final OkHttpClient client = new OkHttpClient();
         client.setConnectTimeout(connectionTimeout, TimeUnit.SECONDS);
+        final long connectionTimeoutMillis = TimeUnit.MILLISECONDS.convert(connectionTimeout, TimeUnit.SECONDS);
+        final SSLSocketFactory sslSocketFactory;
         if (ignoreSslError) {
-            client.setSslSocketFactory(SSLCertificateSocketFactory.getInsecure(0, null));
+            sslSocketFactory = SSLCertificateSocketFactory.getInsecure((int) connectionTimeoutMillis, null);
+            if (sslSocketFactory instanceof SSLCertificateSocketFactory) {
+
+            }
+            client.setSslSocketFactory(sslSocketFactory);
         } else {
-            client.setSslSocketFactory(SSLCertificateSocketFactory.getDefault(0, null));
+            client.setSslSocketFactory(null);
         }
         if (enableProxy) {
             client.setProxy(getProxy(prefs));
+        } else {
+            client.setProxy(Proxy.NO_PROXY);
         }
-        Internal.instance.setNetwork(client, TwidereApplication.getInstance(context).getNetwork());
-        return new OkHttpRestClient(client);
     }
 
 
@@ -146,7 +169,7 @@ public class TwitterAPIFactory implements TwidereConstants {
         } else {
             userAgent = getTwidereUserAgent(context);
         }
-        factory.setClient(getDefaultHttpClient(context));
+        factory.setClient(ApplicationModule.get(context).getRestHttpClient());
         factory.setConverter(new TwitterConverter());
         factory.setEndpoint(endpoint);
         factory.setAuthorization(auth);
@@ -212,8 +235,11 @@ public class TwitterAPIFactory implements TwidereConstants {
                         TWITTER_CONSUMER_KEY_LEGACY : credentials.consumer_key;
                 final String consumerSecret = TextUtils.isEmpty(credentials.consumer_secret) ?
                         TWITTER_CONSUMER_SECRET_LEGACY : credentials.consumer_secret;
-                final OAuthToken accessToken = new OAuthToken(credentials.oauth_token, credentials.oauth_token_secret);
-                return new OAuthAuthorization(consumerKey, consumerSecret, accessToken);
+                final OAuthToken accessToken = new OAuthToken(credentials.oauth_token,
+                        credentials.oauth_token_secret);
+                if (isValidConsumerKeySecret(consumerKey) && isValidConsumerKeySecret(consumerSecret))
+                    return new OAuthAuthorization(consumerKey, consumerSecret, accessToken);
+                return new OAuthAuthorization(TWITTER_CONSUMER_KEY, TWITTER_CONSUMER_SECRET, accessToken);
             }
             case ParcelableCredentials.AUTH_TYPE_BASIC: {
                 final String screenName = credentials.screen_name;
@@ -236,9 +262,13 @@ public class TwitterAPIFactory implements TwidereConstants {
         params.add(Pair.create(name, typedData));
     }
 
+    public static boolean verifyApiFormat(String format) {
+        return URLUtil.isValidUrl(getApiBaseUrl(format, "test"));
+    }
+
     public static String getApiBaseUrl(String format, final String domain) {
         if (format == null) return null;
-        final Matcher matcher = Pattern.compile("\\[(\\.?)DOMAIN(\\.?)\\]").matcher(format);
+        final Matcher matcher = Pattern.compile("\\[(\\.?)DOMAIN(\\.?)\\]", Pattern.CASE_INSENSITIVE).matcher(format);
         if (!matcher.find()) {
             // For backward compatibility
             format = substituteLegacyApiBaseUrl(format, domain);
@@ -293,6 +323,9 @@ public class TwitterAPIFactory implements TwidereConstants {
             case TWITTER_FOR_MAC: {
                 return "Twitter-Mac";
             }
+            case TWEETDECK: {
+                return "TweetDeck";
+            }
         }
         return "Twitter";
     }
@@ -307,7 +340,55 @@ public class TwitterAPIFactory implements TwidereConstants {
         }
     }
 
+    public static Endpoint getOAuthRestEndpoint(String apiUrlFormat, boolean sameOAuthSigningUrl, boolean noVersionSuffix) {
+        return getOAuthEndpoint(apiUrlFormat, "api", noVersionSuffix ? null : "1.1", sameOAuthSigningUrl);
+    }
+
+    public static Endpoint getOAuthEndpoint(String apiUrlFormat, String domain, String versionSuffix, boolean sameOAuthSigningUrl) {
+        String endpointUrl, signEndpointUrl;
+        endpointUrl = getApiUrl(apiUrlFormat, domain, versionSuffix);
+        if (!sameOAuthSigningUrl) {
+            signEndpointUrl = getApiUrl(DEFAULT_TWITTER_API_URL_FORMAT, domain, versionSuffix);
+        } else {
+            signEndpointUrl = endpointUrl;
+        }
+        return new OAuthEndpoint(endpointUrl, signEndpointUrl);
+    }
+
+    public static OAuthToken getOAuthToken(String consumerKey, String consumerSecret) {
+        if (isValidConsumerKeySecret(consumerKey) && isValidConsumerKeySecret(consumerSecret))
+            return new OAuthToken(consumerKey, consumerSecret);
+        return new OAuthToken(TWITTER_CONSUMER_KEY, TWITTER_CONSUMER_SECRET);
+    }
+
+    public static boolean isValidConsumerKeySecret(@NonNull CharSequence text) {
+        for (int i = 0, j = text.length(); i < j; i++) {
+            if (!isAsciiLetterOrDigit(text.charAt(i))) return false;
+        }
+        return true;
+    }
+
+    private static boolean isAsciiLetterOrDigit(int codePoint) {
+        return ('A' <= codePoint && codePoint <= 'Z') || ('a' <= codePoint && codePoint <= 'z') || '0' <= codePoint && codePoint <= '9';
+    }
+
     public static class TwidereRequestInfoFactory implements RequestInfoFactory {
+
+        private static HashMap<String, String> sExtraParams = new HashMap<>();
+
+        static {
+            sExtraParams.put("include_cards", "true");
+            sExtraParams.put("cards_platform", "Android-12");
+            sExtraParams.put("include_entities", "true");
+            sExtraParams.put("include_my_retweet", "1");
+            sExtraParams.put("include_rts", "1");
+            sExtraParams.put("include_reply_count", "true");
+            sExtraParams.put("include_descendent_reply_count", "true");
+            sExtraParams.put("full_text", "true");
+            sExtraParams.put("model_version", "7");
+        }
+
+
         @Override
         public RestRequestInfo create(RestMethodInfo methodInfo) {
             final RestMethod method = methodInfo.getMethod();
@@ -318,23 +399,19 @@ public class TwitterAPIFactory implements TwidereConstants {
             final List<Pair<String, TypedData>> parts = methodInfo.getParts();
             final FileValue file = methodInfo.getFile();
             final Map<String, Object> extras = methodInfo.getExtras();
-            if (parts.isEmpty()) {
-                final List<Pair<String, String>> params = method.hasBody() ? forms : queries;
-                addParameter(params, "include_cards", true);
-                addParameter(params, "cards_platform", "Android-12");
-                addParameter(params, "include_entities", true);
-                addParameter(params, "include_my_retweet", 1);
-                addParameter(params, "include_rts", 1);
-                addParameter(params, "include_reply_count", true);
-                addParameter(params, "include_descendent_reply_count", true);
-            } else {
-                addPart(parts, "include_cards", true);
-                addPart(parts, "cards_platform", "Android-12");
-                addPart(parts, "include_entities", true);
-                addPart(parts, "include_my_retweet", 1);
-                addPart(parts, "include_rts", 1);
-                addPart(parts, "include_reply_count", true);
-                addPart(parts, "include_descendent_reply_count", true);
+            final MethodExtra methodExtra = methodInfo.getMethodExtra();
+            if (methodExtra != null && "extra_params".equals(methodExtra.name())) {
+                final String[] extraParamKeys = methodExtra.values();
+                if (parts.isEmpty()) {
+                    final List<Pair<String, String>> params = method.hasBody() ? forms : queries;
+                    for (String key : extraParamKeys) {
+                        addParameter(params, key, sExtraParams.get(key));
+                    }
+                } else {
+                    for (String key : extraParamKeys) {
+                        addPart(parts, key, sExtraParams.get(key));
+                    }
+                }
             }
             return new RestRequestInfo(method.value(), path, queries, forms, headers, parts, file,
                     methodInfo.getBody(), extras);
@@ -360,16 +437,22 @@ public class TwitterAPIFactory implements TwidereConstants {
                 headers.add(Pair.create("Authorization", authorization.getHeader(endpoint, info)));
             }
             headers.add(Pair.create("User-Agent", userAgent));
-            return new RestHttpRequest(restMethod, url, headers, info.getBody(), null);
+            return new RestHttpRequest(restMethod, url, headers, info.getBody(), RequestType.API);
         }
     }
 
     public static class TwidereExceptionFactory implements ExceptionFactory {
         @Override
         public Exception newException(Throwable cause, RestHttpRequest request, RestHttpResponse response) {
-            final TwitterException te = new TwitterException(cause);
+            final TwitterException te;
+            if (cause != null) {
+                te = new TwitterException(cause);
+            } else {
+                te = TwitterConverter.parseTwitterException(response);
+            }
             te.setResponse(response);
             return te;
         }
     }
+
 }

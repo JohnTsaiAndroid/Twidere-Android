@@ -32,13 +32,12 @@
         android:layout_height="match_parent"
         android:clipToPadding="false">
 
-        <org.mariotaku.twidere.view.RecyclerViewBackport
+        <org.mariotaku.twidere.view.ExtendedRecyclerView
             android:id="@+id/recycler_view"
             android:layout_width="match_parent"
             android:layout_height="match_parent"
             android:clipToPadding="false"
             android:focusable="true"
-            android:focusableInTouchMode="false"
             android:scrollbars="vertical" />
 
     </org.mariotaku.twidere.view.themed.AccentSwipeRefreshLayout>

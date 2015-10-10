@@ -24,7 +24,6 @@ import android.content.SharedPreferences;
 import android.content.SharedPreferences.OnSharedPreferenceChangeListener;
 import android.database.Cursor;
 import android.support.annotation.NonNull;
-import android.support.v7.widget.RecyclerView.Adapter;
 import android.support.v7.widget.RecyclerView.ViewHolder;
 import android.view.LayoutInflater;
 import android.view.View;
@@ -39,16 +38,13 @@ import org.mariotaku.twidere.model.StringLongPair;
 import org.mariotaku.twidere.provider.TwidereDataStore.DirectMessages.ConversationEntries;
 import org.mariotaku.twidere.util.AsyncTwitterWrapper;
 import org.mariotaku.twidere.util.MediaLoaderWrapper;
-import org.mariotaku.twidere.util.MultiSelectManager;
-import org.mariotaku.twidere.util.ReadStateManager;
 import org.mariotaku.twidere.util.ReadStateManager.OnReadStateChangeListener;
-import org.mariotaku.twidere.util.SharedPreferencesWrapper;
 import org.mariotaku.twidere.util.UserColorNameManager;
 import org.mariotaku.twidere.util.Utils;
 import org.mariotaku.twidere.view.holder.LoadIndicatorViewHolder;
 import org.mariotaku.twidere.view.holder.MessageEntryViewHolder;
 
-public class MessageEntriesAdapter extends Adapter<ViewHolder> implements Constants,
+public class MessageEntriesAdapter extends LoadMoreSupportAdapter<ViewHolder> implements Constants,
         IContentCardAdapter, OnClickListener, OnReadStateChangeListener {
 
     public static final int ITEM_VIEW_TYPE_MESSAGE = 0;
@@ -56,39 +52,26 @@ public class MessageEntriesAdapter extends Adapter<ViewHolder> implements Consta
 
     private final Context mContext;
     private final LayoutInflater mInflater;
-    private final MediaLoaderWrapper mImageLoader;
-    private final MultiSelectManager mMultiSelectManager;
     private final int mTextSize;
     private final int mProfileImageStyle;
     private final int mMediaPreviewStyle;
-    private final ReadStateManager mReadStateManager;
     private final OnSharedPreferenceChangeListener mReadStateChangeListener;
-    private UserColorNameManager mUserColorNameManager;
-    private final AsyncTwitterWrapper mTwitterWrapper;
 
     private final boolean mDisplayProfileImage;
-    private boolean mLoadMoreSupported;
-    private boolean mLoadMoreIndicatorVisible;
     private boolean mShowAccountsColor;
     private Cursor mCursor;
     private MessageEntriesAdapterListener mListener;
     private StringLongPair[] mPositionPairs;
 
     public MessageEntriesAdapter(final Context context) {
+        super(context);
         mContext = context;
         mInflater = LayoutInflater.from(context);
         final TwidereApplication app = TwidereApplication.getInstance(context);
-        mMultiSelectManager = app.getMultiSelectManager();
-        mImageLoader = app.getMediaLoaderWrapper();
-        mTwitterWrapper = app.getTwitterWrapper();
-        final SharedPreferencesWrapper preferences = SharedPreferencesWrapper.getInstance(context,
-                SHARED_PREFERENCES_NAME, Context.MODE_PRIVATE);
-        mProfileImageStyle = Utils.getProfileImageStyle(preferences.getString(KEY_PROFILE_IMAGE_STYLE, null));
-        mMediaPreviewStyle = Utils.getMediaPreviewStyle(preferences.getString(KEY_MEDIA_PREVIEW_STYLE, null));
-        mDisplayProfileImage = preferences.getBoolean(KEY_DISPLAY_PROFILE_IMAGE, true);
-        mTextSize = preferences.getInt(KEY_TEXT_SIZE, context.getResources().getInteger(R.integer.default_text_size));
-        mReadStateManager = app.getReadStateManager();
-        mUserColorNameManager = app.getUserColorNameManager();
+        mProfileImageStyle = Utils.getProfileImageStyle(mPreferences.getString(KEY_PROFILE_IMAGE_STYLE, null));
+        mMediaPreviewStyle = Utils.getMediaPreviewStyle(mPreferences.getString(KEY_MEDIA_PREVIEW_STYLE, null));
+        mDisplayProfileImage = mPreferences.getBoolean(KEY_DISPLAY_PROFILE_IMAGE, true);
+        mTextSize = mPreferences.getInt(KEY_TEXT_SIZE, context.getResources().getInteger(R.integer.default_text_size));
         mReadStateChangeListener = new OnSharedPreferenceChangeListener() {
 
             @Override
@@ -98,6 +81,7 @@ public class MessageEntriesAdapter extends Adapter<ViewHolder> implements Consta
         };
     }
 
+    @NonNull
     @Override
     public Context getContext() {
         return mContext;
@@ -130,40 +114,16 @@ public class MessageEntriesAdapter extends Adapter<ViewHolder> implements Consta
         return new DirectMessageEntry(c);
     }
 
+    @NonNull
     @Override
     public MediaLoaderWrapper getMediaLoader() {
-        return mImageLoader;
+        return mMediaLoader;
     }
 
+    @NonNull
     @Override
     public UserColorNameManager getUserColorNameManager() {
         return mUserColorNameManager;
-    }
-
-    @Override
-    public boolean isLoadMoreIndicatorVisible() {
-        return mLoadMoreIndicatorVisible;
-    }
-
-    @Override
-    public void setLoadMoreIndicatorVisible(boolean enabled) {
-        if (mLoadMoreIndicatorVisible == enabled) return;
-        mLoadMoreIndicatorVisible = enabled && mLoadMoreSupported;
-        notifyDataSetChanged();
-    }
-
-    @Override
-    public boolean isLoadMoreSupported() {
-        return mLoadMoreSupported;
-    }
-
-    @Override
-    public void setLoadMoreSupported(boolean supported) {
-        mLoadMoreSupported = supported;
-        if (!supported) {
-            mLoadMoreIndicatorVisible = false;
-        }
-        notifyDataSetChanged();
     }
 
     @Override
@@ -222,7 +182,7 @@ public class MessageEntriesAdapter extends Adapter<ViewHolder> implements Consta
 
     @Override
     public final int getItemCount() {
-        return getMessagesCount() + (mLoadMoreIndicatorVisible ? 1 : 0);
+        return getMessagesCount() + (isLoadMoreIndicatorVisible() ? 1 : 0);
     }
 
     public void onMessageClick(int position) {

@@ -53,14 +53,13 @@ import android.widget.Spinner;
 import android.widget.TextView;
 
 import org.apache.commons.lang3.ArrayUtils;
-import org.mariotaku.querybuilder.Columns.Column;
-import org.mariotaku.querybuilder.Expression;
-import org.mariotaku.querybuilder.OrderBy;
-import org.mariotaku.querybuilder.RawItemArray;
+import org.mariotaku.sqliteqb.library.Columns.Column;
+import org.mariotaku.sqliteqb.library.Expression;
+import org.mariotaku.sqliteqb.library.OrderBy;
+import org.mariotaku.sqliteqb.library.RawItemArray;
 import org.mariotaku.twidere.R;
 import org.mariotaku.twidere.activity.support.QuickSearchBarActivity.SuggestionItem;
 import org.mariotaku.twidere.adapter.AccountsSpinnerAdapter;
-import org.mariotaku.twidere.app.TwidereApplication;
 import org.mariotaku.twidere.model.ParcelableAccount;
 import org.mariotaku.twidere.model.ParcelableCredentials;
 import org.mariotaku.twidere.model.ParcelableUser;
@@ -84,6 +83,8 @@ import org.mariotaku.twidere.view.iface.IExtendedView.OnFitSystemWindowsListener
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 /**
  * Created by mariotaku on 15/1/6.
@@ -190,8 +191,8 @@ public class QuickSearchBarActivity extends ThemedFragmentActivity implements On
     }
 
     @Override
-    public boolean handleKeyboardShortcutSingle(@NonNull KeyboardShortcutsHandler handler, int keyCode, @NonNull KeyEvent event) {
-        final String action = handler.getKeyAction(CONTEXT_TAG_NAVIGATION, keyCode, event);
+    public boolean handleKeyboardShortcutSingle(@NonNull KeyboardShortcutsHandler handler, int keyCode, @NonNull KeyEvent event, int metaState) {
+        final String action = handler.getKeyAction(CONTEXT_TAG_NAVIGATION, keyCode, event, metaState);
         if (ACTION_NAVIGATION_BACK.equals(action) && mSearchQuery.length() == 0) {
             if (!mTextChanged) {
                 onBackPressed();
@@ -200,7 +201,7 @@ public class QuickSearchBarActivity extends ThemedFragmentActivity implements On
             }
             return true;
         }
-        return super.handleKeyboardShortcutSingle(handler, keyCode, event);
+        return super.handleKeyboardShortcutSingle(handler, keyCode, event, metaState);
     }
 
     @Override
@@ -231,8 +232,14 @@ public class QuickSearchBarActivity extends ThemedFragmentActivity implements On
 
         EditTextEnterHandler.attach(mSearchQuery, new EnterListener() {
             @Override
-            public void onHitEnter() {
+            public boolean shouldCallListener() {
+                return true;
+            }
+
+            @Override
+            public boolean onHitEnter() {
                 doSearch();
+                return true;
             }
         }, true);
         mSearchQuery.addTextChangedListener(new TextWatcher() {
@@ -419,10 +426,9 @@ public class QuickSearchBarActivity extends ThemedFragmentActivity implements On
 
         SuggestionsAdapter(QuickSearchBarActivity activity) {
             mActivity = activity;
+            mImageLoader = activity.mImageLoader;
+            mUserColorNameManager = activity.mUserColorNameManager;
             mInflater = LayoutInflater.from(activity);
-            final TwidereApplication application = TwidereApplication.getInstance(activity);
-            mImageLoader = application.getMediaLoaderWrapper();
-            mUserColorNameManager = application.getUserColorNameManager();
         }
 
         public boolean canDismiss(int position) {
@@ -516,11 +522,15 @@ public class QuickSearchBarActivity extends ThemedFragmentActivity implements On
 
     public static class SuggestionsLoader extends AsyncTaskLoader<List<SuggestionItem>> {
 
+        private static final Pattern PATTERN_SCREEN_NAME = Pattern.compile("(?i)[@\uFF20]?([a-z0-9_]{1,20})");
+
+        private final UserColorNameManager mUserColorNameManager;
         private final long mAccountId;
         private final String mQuery;
 
-        public SuggestionsLoader(Context context, long accountId, String query) {
+        public SuggestionsLoader(QuickSearchBarActivity context, long accountId, String query) {
             super(context);
+            mUserColorNameManager = context.mUserColorNameManager;
             mAccountId = accountId;
             mQuery = query;
         }
@@ -541,8 +551,7 @@ public class QuickSearchBarActivity extends ThemedFragmentActivity implements On
             historyCursor.close();
             if (!emptyQuery) {
                 final String queryEscaped = mQuery.replace("_", "^_");
-                final UserColorNameManager nicknamePrefs = UserColorNameManager.getInstance(context);
-                final long[] nicknameIds = Utils.getMatchedNicknameIds(mQuery, nicknamePrefs);
+                final long[] nicknameIds = Utils.getMatchedNicknameIds(mQuery, mUserColorNameManager);
                 final Expression selection = Expression.or(
                         Expression.likeRaw(new Column(CachedUsers.SCREEN_NAME), "?||'%'", "^"),
                         Expression.likeRaw(new Column(CachedUsers.NAME), "?||'%'", "^"),
@@ -552,9 +561,8 @@ public class QuickSearchBarActivity extends ThemedFragmentActivity implements On
                 final boolean[] ascending = {false, false, true, true};
                 final OrderBy orderBy = new OrderBy(order, ascending);
                 final Uri uri = Uri.withAppendedPath(CachedUsers.CONTENT_URI_WITH_SCORE, String.valueOf(mAccountId));
-                final Cursor usersCursor = context.getContentResolver().query(uri,
-                        CachedUsers.COLUMNS, selection != null ? selection.getSQL() : null,
-                        selectionArgs, orderBy.getSQL());
+                final Cursor usersCursor = context.getContentResolver().query(uri, CachedUsers.COLUMNS,
+                        selection.getSQL(), selectionArgs, orderBy.getSQL());
                 final CachedIndices usersIndices = new CachedIndices(usersCursor);
                 final int screenNamePos = result.size();
                 boolean hasName = false;
@@ -567,8 +575,11 @@ public class QuickSearchBarActivity extends ThemedFragmentActivity implements On
                         hasName = true;
                     }
                 }
-                if (!hasName && mQuery.matches("(?i)[a-z0-9_]{1,20}")) {
-                    result.add(screenNamePos, new UserScreenNameItem(mQuery, mAccountId));
+                if (!hasName) {
+                    final Matcher m = PATTERN_SCREEN_NAME.matcher(mQuery);
+                    if (m.matches()) {
+                        result.add(screenNamePos, new UserScreenNameItem(m.group(1), mAccountId));
+                    }
                 }
                 usersCursor.close();
             } else {

@@ -27,9 +27,7 @@ import android.content.Context;
 import android.content.Intent;
 import android.content.SharedPreferences;
 import android.content.SharedPreferences.OnSharedPreferenceChangeListener;
-import android.content.res.Resources;
 import android.database.ContentObserver;
-import android.graphics.Canvas;
 import android.graphics.PorterDuff.Mode;
 import android.graphics.Rect;
 import android.net.Uri;
@@ -41,10 +39,12 @@ import android.support.annotation.NonNull;
 import android.support.v4.app.Fragment;
 import android.support.v4.app.FragmentManager;
 import android.support.v4.app.NotificationCompat;
+import android.support.v4.view.GravityCompat;
 import android.support.v4.view.ViewCompat;
 import android.support.v4.view.ViewPager;
 import android.support.v4.view.ViewPager.OnPageChangeListener;
-import android.support.v7.app.ThemedAppCompatDelegateFactory;
+import android.support.v4.widget.DrawerLayout;
+import android.support.v4.widget.DrawerLayoutTrojan;
 import android.support.v7.widget.Toolbar;
 import android.view.Gravity;
 import android.view.KeyEvent;
@@ -60,12 +60,7 @@ import android.widget.FrameLayout;
 import android.widget.FrameLayout.LayoutParams;
 import android.widget.Toast;
 
-import com.jeremyfeinstein.slidingmenu.lib.SlidingMenu;
-import com.jeremyfeinstein.slidingmenu.lib.SlidingMenu.CanvasTransformer;
-import com.jeremyfeinstein.slidingmenu.lib.SlidingMenu.OnClosedListener;
-import com.jeremyfeinstein.slidingmenu.lib.SlidingMenu.OnOpenedListener;
 import com.meizu.flyme.reflect.StatusBarProxy;
-import com.squareup.otto.Bus;
 import com.squareup.otto.Subscribe;
 
 import org.apache.commons.lang3.ArrayUtils;
@@ -74,7 +69,6 @@ import org.mariotaku.twidere.activity.SettingsActivity;
 import org.mariotaku.twidere.activity.SettingsWizardActivity;
 import org.mariotaku.twidere.activity.UsageStatisticsActivity;
 import org.mariotaku.twidere.adapter.support.SupportTabsAdapter;
-import org.mariotaku.twidere.app.TwidereApplication;
 import org.mariotaku.twidere.fragment.CustomTabsFragment;
 import org.mariotaku.twidere.fragment.iface.RefreshScrollTopInterface;
 import org.mariotaku.twidere.fragment.iface.SupportFragmentCallback;
@@ -89,7 +83,6 @@ import org.mariotaku.twidere.provider.TwidereDataStore.Mentions;
 import org.mariotaku.twidere.provider.TwidereDataStore.Statuses;
 import org.mariotaku.twidere.service.StreamingService;
 import org.mariotaku.twidere.util.AsyncTaskUtils;
-import org.mariotaku.twidere.util.AsyncTwitterWrapper;
 import org.mariotaku.twidere.util.CustomTabUtils;
 import org.mariotaku.twidere.util.KeyboardShortcutsHandler;
 import org.mariotaku.twidere.util.KeyboardShortcutsHandler.KeyboardShortcutCallback;
@@ -107,8 +100,6 @@ import org.mariotaku.twidere.util.support.ActivitySupport.TaskDescriptionCompat;
 import org.mariotaku.twidere.util.support.ViewSupport;
 import org.mariotaku.twidere.util.support.view.ViewOutlineProviderCompat;
 import org.mariotaku.twidere.view.ExtendedViewPager;
-import org.mariotaku.twidere.view.HomeSlidingMenu;
-import org.mariotaku.twidere.view.LeftDrawerFrameLayout;
 import org.mariotaku.twidere.view.TabPagerIndicator;
 import org.mariotaku.twidere.view.TintedStatusFrameLayout;
 import org.mariotaku.twidere.view.iface.IHomeActionButton;
@@ -118,9 +109,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
-
-import edu.tsinghua.spice.Utilies.NetworkStateUtil;
-import edu.tsinghua.spice.Utilies.SpiceProfilingUtil;
 
 import static org.mariotaku.twidere.util.CompareUtils.classEquals;
 import static org.mariotaku.twidere.util.Utils.cleanDatabasesByItemLimit;
@@ -132,8 +120,7 @@ import static org.mariotaku.twidere.util.Utils.openSearch;
 import static org.mariotaku.twidere.util.Utils.showMenuItemToast;
 
 public class HomeActivity extends BaseAppCompatActivity implements OnClickListener, OnPageChangeListener,
-        SupportFragmentCallback, OnOpenedListener, OnClosedListener, OnLongClickListener {
-
+        SupportFragmentCallback, OnLongClickListener {
     private final Handler mHandler = new Handler();
 
     private final ContentObserver mAccountChangeObserver = new AccountChangeObserver(this, mHandler);
@@ -142,23 +129,20 @@ public class HomeActivity extends BaseAppCompatActivity implements OnClickListen
 
     private SharedPreferences mPreferences;
 
-    private AsyncTwitterWrapper mTwitterWrapper;
 
     private NotificationManager mNotificationManager;
 
     private MultiSelectEventHandler mMultiSelectHandler;
-    private ReadStateManager mReadStateManager;
 
     private SupportTabsAdapter mPagerAdapter;
 
     private ExtendedViewPager mViewPager;
     private TabPagerIndicator mTabIndicator;
-    private HomeSlidingMenu mSlidingMenu;
+    private DrawerLayout mDrawerLayout;
     private View mEmptyTabHint;
     private View mActionsButton;
     private View mActionBarWithOverlay;
-    private LeftDrawerFrameLayout mLeftDrawerContainer;
-    private TintedStatusFrameLayout mColorStatusFrameLayout;
+    private TintedStatusFrameLayout mHomeContent;
 
     private UpdateUnreadCountTask mUpdateUnreadCountTask;
 
@@ -175,8 +159,8 @@ public class HomeActivity extends BaseAppCompatActivity implements OnClickListen
     private View mActionBarContainer;
 
     public void closeAccountsDrawer() {
-        if (mSlidingMenu == null) return;
-        mSlidingMenu.showContent();
+        if (mDrawerLayout == null) return;
+        mDrawerLayout.closeDrawers();
     }
 
     public long[] getActivatedAccountIds() {
@@ -206,10 +190,14 @@ public class HomeActivity extends BaseAppCompatActivity implements OnClickListen
         return getSupportFragmentManager().findFragmentById(R.id.left_drawer);
     }
 
+    public boolean getDefaultSystemWindowsInsets(Rect insets) {
+        return super.getSystemWindowsInsets(insets);
+    }
+
     @Override
     public boolean getSystemWindowsInsets(Rect insets) {
         final int height = mTabIndicator != null ? mTabIndicator.getHeight() : 0;
-        insets.top = height != 0 ? height : ThemeUtils.getActionBarHeight(this);
+        insets.top = (height != 0 ? height : ThemeUtils.getActionBarHeight(this));
         return true;
     }
 
@@ -219,26 +207,30 @@ public class HomeActivity extends BaseAppCompatActivity implements OnClickListen
     }
 
     @Override
+    public void setControlBarVisibleAnimate(boolean visible, ControlBarShowHideHelper.ControlBarAnimationListener listener) {
+        mControlBarShowHideHelper.setControlBarVisibleAnimate(visible, listener);
+    }
+
+    @Override
     public boolean onOptionsItemSelected(final MenuItem item) {
         switch (item.getItemId()) {
-            case MENU_HOME: {
+            case android.R.id.home: {
                 final FragmentManager fm = getSupportFragmentManager();
                 final int count = fm.getBackStackEntryCount();
-
-                if (mSlidingMenu.isMenuShowing()) {
-                    mSlidingMenu.showContent();
+                if (mDrawerLayout.isDrawerOpen(GravityCompat.START) || mDrawerLayout.isDrawerOpen(GravityCompat.END)) {
+                    mDrawerLayout.closeDrawers();
                     return true;
                 } else if (count == 0) {
-                    mSlidingMenu.showMenu();
+                    mDrawerLayout.openDrawer(GravityCompat.START);
                     return true;
                 }
                 return true;
             }
-            case MENU_SEARCH: {
+            case R.id.search: {
                 openSearchView(mSelectedAccountToSearch);
                 return true;
             }
-            case MENU_ACTIONS: {
+            case R.id.actions: {
                 triggerActionsClick();
                 return true;
             }
@@ -247,34 +239,33 @@ public class HomeActivity extends BaseAppCompatActivity implements OnClickListen
     }
 
     @Override
-    public boolean handleKeyboardShortcutSingle(@NonNull KeyboardShortcutsHandler handler, int keyCode, @NonNull KeyEvent event) {
-        if (handleFragmentKeyboardShortcutSingle(handler, keyCode, event)) return true;
-        String action = handler.getKeyAction(CONTEXT_TAG_HOME, keyCode, event);
+    public boolean handleKeyboardShortcutSingle(@NonNull KeyboardShortcutsHandler handler, int keyCode, @NonNull KeyEvent event, int metaState) {
+        if (handleFragmentKeyboardShortcutSingle(handler, keyCode, event, metaState)) return true;
+        String action = handler.getKeyAction(CONTEXT_TAG_HOME, keyCode, event, metaState);
         if (action != null) {
             switch (action) {
                 case ACTION_HOME_ACCOUNTS_DASHBOARD: {
-                    if (mSlidingMenu.isMenuShowing()) {
-                        mSlidingMenu.showContent(true);
+                    if (mDrawerLayout.isDrawerOpen(GravityCompat.START)) {
+                        mDrawerLayout.closeDrawers();
                     } else {
-                        mSlidingMenu.showMenu(true);
+                        mDrawerLayout.openDrawer(GravityCompat.START);
                         setControlBarVisibleAnimate(true);
                     }
                     return true;
                 }
             }
         }
-        action = handler.getKeyAction(CONTEXT_TAG_NAVIGATION, keyCode, event);
+        action = handler.getKeyAction(CONTEXT_TAG_NAVIGATION, keyCode, event, metaState);
         if (action != null) {
             switch (action) {
                 case ACTION_NAVIGATION_PREVIOUS_TAB: {
                     final int previous = mViewPager.getCurrentItem() - 1;
-                    final int mode = mSlidingMenu.getMode();
-                    if (previous < 0 && (mode == SlidingMenu.LEFT || mode == SlidingMenu.LEFT_RIGHT)) {
-                        mSlidingMenu.showMenu(true);
+                    if (previous < 0 && DrawerLayoutTrojan.findDrawerWithGravity(mDrawerLayout, Gravity.START) != null) {
+                        mDrawerLayout.openDrawer(GravityCompat.START);
                         setControlBarVisibleAnimate(true);
                     } else if (previous < mPagerAdapter.getCount()) {
-                        if (mSlidingMenu.isSecondaryMenuShowing()) {
-                            mSlidingMenu.showContent(true);
+                        if (mDrawerLayout.isDrawerOpen(GravityCompat.END)) {
+                            mDrawerLayout.closeDrawers();
                         } else {
                             mViewPager.setCurrentItem(previous, true);
                         }
@@ -283,13 +274,12 @@ public class HomeActivity extends BaseAppCompatActivity implements OnClickListen
                 }
                 case ACTION_NAVIGATION_NEXT_TAB: {
                     final int next = mViewPager.getCurrentItem() + 1;
-                    final int mode = mSlidingMenu.getMode();
-                    if (next >= mPagerAdapter.getCount() && (mode == SlidingMenu.RIGHT || mode == SlidingMenu.LEFT_RIGHT)) {
-                        mSlidingMenu.showSecondaryMenu(true);
+                    if (next >= mPagerAdapter.getCount() && DrawerLayoutTrojan.findDrawerWithGravity(mDrawerLayout, Gravity.END) != null) {
+                        mDrawerLayout.openDrawer(GravityCompat.END);
                         setControlBarVisibleAnimate(true);
                     } else if (next >= 0) {
-                        if (mSlidingMenu.isMenuShowing()) {
-                            mSlidingMenu.showContent(true);
+                        if (mDrawerLayout.isDrawerOpen(GravityCompat.START)) {
+                            mDrawerLayout.closeDrawers();
                         } else {
                             mViewPager.setCurrentItem(next, true);
                         }
@@ -298,25 +288,51 @@ public class HomeActivity extends BaseAppCompatActivity implements OnClickListen
                 }
             }
         }
-        return handler.handleKey(this, null, keyCode, event);
+        return handler.handleKey(this, null, keyCode, event, metaState);
     }
 
     @Override
-    public void setControlBarOffset(float offset) {
-        mActionBarWithOverlay.setTranslationY(mTabColumns > 1 ? 0 : getControlBarHeight() * (offset - 1));
-        final ViewGroup.LayoutParams lp = mActionsButton.getLayoutParams();
-        if (lp instanceof MarginLayoutParams) {
-            mActionsButton.setTranslationY((((MarginLayoutParams) lp).bottomMargin + mActionsButton.getHeight()) * (1 - offset));
-        } else {
-            mActionsButton.setTranslationY(mActionsButton.getHeight() * (1 - offset));
+    public boolean isKeyboardShortcutHandled(@NonNull KeyboardShortcutsHandler handler, int keyCode, @NonNull KeyEvent event, int metaState) {
+        if (isFragmentKeyboardShortcutHandled(handler, keyCode, event, metaState)) return true;
+        return super.isKeyboardShortcutHandled(handler, keyCode, event, metaState);
+    }
+
+    @Override
+    public boolean handleKeyboardShortcutRepeat(@NonNull KeyboardShortcutsHandler handler, int keyCode, int repeatCount, @NonNull KeyEvent event, int metaState) {
+        if (handleFragmentKeyboardShortcutRepeat(handler, keyCode, repeatCount, event, metaState))
+            return true;
+        return super.handleKeyboardShortcutRepeat(handler, keyCode, repeatCount, event, metaState);
+    }
+
+    @Override
+    public boolean onKeyUp(int keyCode, @NonNull KeyEvent event) {
+        switch (keyCode) {
+            case KeyEvent.KEYCODE_MENU: {
+                final DrawerLayout drawer = mDrawerLayout;
+                if (isDrawerOpen()) {
+                    drawer.closeDrawers();
+                } else {
+                    drawer.openDrawer(Gravity.LEFT);
+                }
+                return true;
+            }
+            case KeyEvent.KEYCODE_BACK: {
+                final DrawerLayout drawer = mDrawerLayout;
+                if (isDrawerOpen()) {
+                    drawer.closeDrawers();
+                } else {
+                    onBackPressed();
+                }
+                return true;
+            }
         }
-        notifyControlBarOffsetChanged();
+        return super.onKeyUp(keyCode, event);
     }
 
-    @Override
-    public boolean handleKeyboardShortcutRepeat(@NonNull KeyboardShortcutsHandler handler, int keyCode, int repeatCount, @NonNull KeyEvent event) {
-        if (handleFragmentKeyboardShortcutRepeat(handler, keyCode, repeatCount, event)) return true;
-        return super.handleKeyboardShortcutRepeat(handler, keyCode, repeatCount, event);
+    private boolean isDrawerOpen() {
+        final DrawerLayout drawer = mDrawerLayout;
+        if (drawer == null) return false;
+        return drawer.isDrawerOpen(GravityCompat.START) || drawer.isDrawerOpen(GravityCompat.END);
     }
 
     /**
@@ -335,21 +351,18 @@ public class HomeActivity extends BaseAppCompatActivity implements OnClickListen
             return;
         }
         mPreferences = getSharedPreferences(SHARED_PREFERENCES_NAME, Context.MODE_PRIVATE);
-        mTwitterWrapper = getTwitterWrapper();
-        final TwidereApplication app = TwidereApplication.getInstance(this);
-        mReadStateManager = app.getReadStateManager();
         mNotificationManager = (NotificationManager) getSystemService(NOTIFICATION_SERVICE);
         mMultiSelectHandler = new MultiSelectEventHandler(this);
         mMultiSelectHandler.dispatchOnCreate();
-//        if (!Utils.hasAccount(this)) {
-//            final Intent signInIntent = new Intent(INTENT_ACTION_TWITTER_LOGIN);
-//            signInIntent.setClass(this, SignInActivity.class);
-//            startActivity(signInIntent);
-//            finish();
-//            return;
-//        } else {
-//            notifyAccountsChanged();
-//        }
+        if (!Utils.hasAccount(this)) {
+            final Intent signInIntent = new Intent(INTENT_ACTION_TWITTER_LOGIN);
+            signInIntent.setClass(this, SignInActivity.class);
+            startActivity(signInIntent);
+            finish();
+            return;
+        } else {
+            notifyAccountsChanged();
+        }
         final Intent intent = getIntent();
         if (openSettingsWizard()) {
             finish();
@@ -363,7 +376,7 @@ public class HomeActivity extends BaseAppCompatActivity implements OnClickListen
 
         mTabColumns = getResources().getInteger(R.integer.default_tab_columns);
 
-        mColorStatusFrameLayout.setOnFitSystemWindowsListener(this);
+        mHomeContent.setOnFitSystemWindowsListener(this);
         mPagerAdapter = new SupportTabsAdapter(this, getSupportFragmentManager(), mTabIndicator, mTabColumns);
         mViewPager.setAdapter(mPagerAdapter);
 //        mViewPager.setOffscreenPageLimit(3);
@@ -394,27 +407,6 @@ public class HomeActivity extends BaseAppCompatActivity implements OnClickListen
         initUnreadCount();
         updateActionsButton();
         updateSlidingMenuTouchMode();
-        getDelegate().setKeyListener(new ThemedAppCompatDelegateFactory.KeyListener() {
-            @Override
-            public boolean onKeyDown(int keyCode, KeyEvent event) {
-                return false;
-            }
-
-            @Override
-            public boolean onKeyUp(int keyCode, KeyEvent event) {
-                // Steal MENU key event
-                switch (keyCode) {
-                    case KeyEvent.KEYCODE_MENU: {
-                        if (mSlidingMenu != null) {
-                            mSlidingMenu.toggle(true);
-                            return true;
-                        }
-                        break;
-                    }
-                }
-                return false;
-            }
-        });
 
         if (savedInstanceState == null) {
             if (refreshOnStart) {
@@ -429,7 +421,9 @@ public class HomeActivity extends BaseAppCompatActivity implements OnClickListen
         final int initialTabPosition = handleIntent(intent, savedInstanceState == null);
         setTabPosition(initialTabPosition);
 
-        startService(new Intent(this, StreamingService.class));
+        if (Utils.isStreamingEnabled()) {
+            startService(new Intent(this, StreamingService.class));
+        }
     }
 
     @Override
@@ -439,15 +433,8 @@ public class HomeActivity extends BaseAppCompatActivity implements OnClickListen
         sendBroadcast(new Intent(BROADCAST_HOME_ACTIVITY_ONSTART));
         final ContentResolver resolver = getContentResolver();
         resolver.registerContentObserver(Accounts.CONTENT_URI, true, mAccountChangeObserver);
-        final Bus bus = TwidereApplication.getInstance(this).getMessageBus();
-        assert bus != null;
-        bus.register(this);
-        // spice
-        SpiceProfilingUtil.profile(this, SpiceProfilingUtil.FILE_NAME_APP, "App Launch" + "," + Build.MODEL
-                + "," + "mediaPreview=" + mPreferences.getBoolean(KEY_MEDIA_PREVIEW, false));
-        SpiceProfilingUtil.profile(this, SpiceProfilingUtil.FILE_NAME_ONLAUNCH, "App Launch"
-                + "," + NetworkStateUtil.getConnectedType(this) + "," + Build.MODEL);
-        //end
+        mBus.register(this);
+
         mReadStateManager.registerOnSharedPreferenceChangeListener(mReadStateChangeListener);
         updateUnreadCount();
     }
@@ -472,18 +459,12 @@ public class HomeActivity extends BaseAppCompatActivity implements OnClickListen
     protected void onStop() {
         mMultiSelectHandler.dispatchOnStop();
         mReadStateManager.unregisterOnSharedPreferenceChangeListener(mReadStateChangeListener);
-        final Bus bus = TwidereApplication.getInstance(this).getMessageBus();
-        assert bus != null;
-        bus.unregister(this);
+        mBus.unregister(this);
         final ContentResolver resolver = getContentResolver();
         resolver.unregisterContentObserver(mAccountChangeObserver);
         mPreferences.edit().putInt(KEY_SAVED_TAB_POSITION, mViewPager.getCurrentItem()).apply();
         sendBroadcast(new Intent(BROADCAST_HOME_ACTIVITY_ONSTOP));
 
-        // spice
-        SpiceProfilingUtil.profile(this, SpiceProfilingUtil.FILE_NAME_APP, "App Stop");
-        SpiceProfilingUtil.profile(this, SpiceProfilingUtil.FILE_NAME_ONLAUNCH, "App Stop" + "," + NetworkStateUtil.getConnectedType(this) + "," + Build.MODEL);
-        //end
         super.onStop();
     }
 
@@ -492,6 +473,11 @@ public class HomeActivity extends BaseAppCompatActivity implements OnClickListen
     }
 
     public void notifyAccountsChanged() {
+    }
+
+    @Override
+    protected void onSaveInstanceState(Bundle outState) {
+        super.onSaveInstanceState(outState);
     }
 
     @Subscribe
@@ -522,11 +508,6 @@ public class HomeActivity extends BaseAppCompatActivity implements OnClickListen
     }
 
     @Override
-    public void onClosed() {
-        updateDrawerPercentOpen(0, true);
-    }
-
-    @Override
     public boolean onLongClick(final View v) {
         switch (v.getId()) {
             case R.id.actions_button: {
@@ -538,18 +519,14 @@ public class HomeActivity extends BaseAppCompatActivity implements OnClickListen
     }
 
     @Override
-    public void onOpened() {
-        updateDrawerPercentOpen(1, true);
-    }
-
-    @Override
     public void onPageScrolled(final int position, final float positionOffset, final int positionOffsetPixels) {
     }
 
     @Override
     public void onPageSelected(final int position) {
-        if (mSlidingMenu.isMenuShowing()) {
-            mSlidingMenu.showContent();
+        //TODO handle secondary drawer
+        if (mDrawerLayout.isDrawerOpen(GravityCompat.START)) {
+            mDrawerLayout.closeDrawers();
         }
         updateSlidingMenuTouchMode();
         updateActionsButton();
@@ -558,16 +535,6 @@ public class HomeActivity extends BaseAppCompatActivity implements OnClickListen
     @Override
     public void onPageScrollStateChanged(final int state) {
         setControlBarVisibleAnimate(true);
-    }
-
-    @Override
-    public void onWindowFocusChanged(final boolean hasFocus) {
-        super.onWindowFocusChanged(hasFocus);
-        if (mSlidingMenu != null && mSlidingMenu.isMenuShowing()) {
-            updateDrawerPercentOpen(1, false);
-        } else {
-            updateDrawerPercentOpen(0, false);
-        }
     }
 
     @Override
@@ -581,12 +548,14 @@ public class HomeActivity extends BaseAppCompatActivity implements OnClickListen
         onSearchRequested();
     }
 
-    public void setSystemWindowInsets(Rect insets) {
+    @Override
+    public void onFitSystemWindows(Rect insets) {
+        super.onFitSystemWindows(insets);
         final Fragment fragment = getLeftDrawerFragment();
         if (fragment instanceof AccountsDashboardFragment) {
-            ((AccountsDashboardFragment) fragment).setStatusBarHeight(insets.top);
+            ((AccountsDashboardFragment) fragment).requestFitSystemWindows();
         }
-        mColorStatusFrameLayout.setStatusBarHeight(insets.top);
+        mHomeContent.setStatusBarHeight(insets.top);
     }
 
     public void updateUnreadCount() {
@@ -596,17 +565,6 @@ public class HomeActivity extends BaseAppCompatActivity implements OnClickListen
                 mPagerAdapter.getTabs());
         AsyncTaskUtils.executeTask(mUpdateUnreadCountTask);
         mTabIndicator.setDisplayBadge(mPreferences.getBoolean(KEY_UNREAD_COUNT, true));
-    }
-
-    @Override
-    protected void onActivityResult(final int requestCode, final int resultCode, final Intent data) {
-        switch (requestCode) {
-            case REQUEST_SWIPEBACK_ACTIVITY: {
-                // closeAccountsDrawer();
-                return;
-            }
-        }
-        super.onActivityResult(requestCode, resultCode, data);
     }
 
     @Override
@@ -629,15 +587,6 @@ public class HomeActivity extends BaseAppCompatActivity implements OnClickListen
     }
 
     @Override
-    public void onBackPressed() {
-        if (mSlidingMenu != null && mSlidingMenu.isMenuShowing()) {
-            mSlidingMenu.showContent();
-            return;
-        }
-        super.onBackPressed();
-    }
-
-    @Override
     public float getControlBarOffset() {
         if (mTabColumns > 1) {
             final ViewGroup.LayoutParams lp = mActionsButton.getLayoutParams();
@@ -654,24 +603,36 @@ public class HomeActivity extends BaseAppCompatActivity implements OnClickListen
     }
 
     @Override
+    public void setControlBarOffset(float offset) {
+        mActionBarWithOverlay.setTranslationY(mTabColumns > 1 ? 0 : getControlBarHeight() * (offset - 1));
+        final ViewGroup.LayoutParams lp = mActionsButton.getLayoutParams();
+        if (lp instanceof MarginLayoutParams) {
+            mActionsButton.setTranslationY((((MarginLayoutParams) lp).bottomMargin + mActionsButton.getHeight()) * (1 - offset));
+        } else {
+            mActionsButton.setTranslationY(mActionsButton.getHeight() * (1 - offset));
+        }
+        notifyControlBarOffsetChanged();
+    }
+
+    @Override
     public void onContentChanged() {
         super.onContentChanged();
         mActionBar = (Toolbar) findViewById(R.id.action_bar);
         mActionBarContainer = findViewById(R.id.twidere_action_bar_container);
         mTabIndicator = (TabPagerIndicator) findViewById(R.id.main_tabs);
-        mSlidingMenu = (HomeSlidingMenu) findViewById(R.id.home_menu);
+        mDrawerLayout = (DrawerLayout) findViewById(R.id.home_menu);
         mViewPager = (ExtendedViewPager) findViewById(R.id.main_pager);
         mEmptyTabHint = findViewById(R.id.empty_tab_hint);
         mActionsButton = findViewById(R.id.actions_button);
         mActionBarWithOverlay = findViewById(R.id.twidere_action_bar_with_overlay);
         mTabIndicator = (TabPagerIndicator) findViewById(R.id.main_tabs);
-        mColorStatusFrameLayout = (TintedStatusFrameLayout) findViewById(R.id.home_content);
+        mHomeContent = (TintedStatusFrameLayout) findViewById(R.id.home_content);
     }
 
     private Fragment getKeyboardShortcutRecipient() {
-        if (mSlidingMenu.isMenuShowing()) {
+        if (mDrawerLayout.isDrawerOpen(GravityCompat.START)) {
             return getLeftDrawerFragment();
-        } else if (mSlidingMenu.isSecondaryMenuShowing()) {
+        } else if (mDrawerLayout.isDrawerOpen(GravityCompat.END)) {
             return null;
         } else {
             return getCurrentVisibleFragment();
@@ -685,19 +646,32 @@ public class HomeActivity extends BaseAppCompatActivity implements OnClickListen
 
     private boolean handleFragmentKeyboardShortcutRepeat(final KeyboardShortcutsHandler handler,
                                                          final int keyCode, final int repeatCount,
-                                                         @NonNull final KeyEvent event) {
+                                                         @NonNull final KeyEvent event, int metaState) {
         final Fragment fragment = getKeyboardShortcutRecipient();
         if (fragment instanceof KeyboardShortcutCallback) {
-            return ((KeyboardShortcutCallback) fragment).handleKeyboardShortcutRepeat(handler, keyCode, repeatCount, event);
+            return ((KeyboardShortcutCallback) fragment).handleKeyboardShortcutRepeat(handler, keyCode,
+                    repeatCount, event, metaState);
         }
         return false;
     }
 
     private boolean handleFragmentKeyboardShortcutSingle(final KeyboardShortcutsHandler handler,
-                                                         final int keyCode, @NonNull final KeyEvent event) {
+                                                         final int keyCode, @NonNull final KeyEvent event,
+                                                         int metaState) {
         final Fragment fragment = getKeyboardShortcutRecipient();
         if (fragment instanceof KeyboardShortcutCallback) {
-            return ((KeyboardShortcutCallback) fragment).handleKeyboardShortcutSingle(handler, keyCode, event);
+            return ((KeyboardShortcutCallback) fragment).handleKeyboardShortcutSingle(handler, keyCode,
+                    event, metaState);
+        }
+        return false;
+    }
+
+    private boolean isFragmentKeyboardShortcutHandled(final KeyboardShortcutsHandler handler,
+                                                      final int keyCode, @NonNull final KeyEvent event, int metaState) {
+        final Fragment fragment = getKeyboardShortcutRecipient();
+        if (fragment instanceof KeyboardShortcutCallback) {
+            return ((KeyboardShortcutCallback) fragment).isKeyboardShortcutHandled(handler, keyCode,
+                    event, metaState);
         }
         return false;
     }
@@ -771,8 +745,8 @@ public class HomeActivity extends BaseAppCompatActivity implements OnClickListen
     }
 
     private void openAccountsDrawer() {
-        if (mSlidingMenu == null) return;
-        mSlidingMenu.showMenu();
+        if (mDrawerLayout == null) return;
+        mDrawerLayout.openDrawer(GravityCompat.START);
     }
 
     private boolean openSettingsWizard() {
@@ -822,11 +796,11 @@ public class HomeActivity extends BaseAppCompatActivity implements OnClickListen
             mTabIndicator.setLabelColor(contrastColor);
             ActivitySupport.setTaskDescription(this, new TaskDescriptionCompat(null, null, themeColor));
         }
-        mColorStatusFrameLayout.setDrawColor(true);
-        mColorStatusFrameLayout.setDrawShadow(false);
-        mColorStatusFrameLayout.setColor(actionBarColor, actionBarAlpha);
+        mHomeContent.setDrawColor(true);
+        mHomeContent.setDrawShadow(false);
+        mHomeContent.setColor(actionBarColor, actionBarAlpha);
         StatusBarProxy.setStatusBarDarkIcon(getWindow(), TwidereColorUtils.getYIQLuminance(actionBarColor) > ThemeUtils.ACCENT_COLOR_THRESHOLD);
-        mColorStatusFrameLayout.setFactor(1);
+        mHomeContent.setFactor(1);
         mActionBarWithOverlay.setAlpha(actionBarAlpha / 255f);
         mActionsButton.setAlpha(actionBarAlpha / 255f);
     }
@@ -841,35 +815,11 @@ public class HomeActivity extends BaseAppCompatActivity implements OnClickListen
     }
 
     private void setupSlidingMenu() {
-        if (mSlidingMenu == null) return;
-        final Resources res = getResources();
-        final int marginThreshold = res.getDimensionPixelSize(R.dimen.default_sliding_menu_margin_threshold);
-        final boolean relativeBehindWidth = res.getBoolean(R.bool.relative_behind_width);
-        mSlidingMenu.setMode(SlidingMenu.LEFT);
-        mSlidingMenu.setShadowWidthRes(R.dimen.default_sliding_menu_shadow_width);
-        mSlidingMenu.setShadowDrawable(R.drawable.shadow_left);
-        mSlidingMenu.setSecondaryShadowDrawable(R.drawable.shadow_right);
-        if (relativeBehindWidth) {
-            mSlidingMenu.setBehindOffsetRes(R.dimen.drawer_offset_home);
-        } else {
-            mSlidingMenu.setBehindWidthRes(R.dimen.drawer_width_home);
-        }
-        mSlidingMenu.setTouchmodeMarginThreshold(marginThreshold);
-        mSlidingMenu.setFadeDegree(0.5f);
-        mSlidingMenu.setMenu(R.layout.drawer_home_accounts);
-        mSlidingMenu.setOnOpenedListener(this);
-        mSlidingMenu.setOnClosedListener(this);
-        mLeftDrawerContainer = (LeftDrawerFrameLayout) mSlidingMenu.getMenu().findViewById(R.id.left_drawer_container);
-        final boolean isTransparentBackground = ThemeUtils.isTransparentBackground(getCurrentThemeBackgroundOption());
-        mLeftDrawerContainer.setClipEnabled(isTransparentBackground);
-        mLeftDrawerContainer.setScrollScale(mSlidingMenu.getBehindScrollScale());
-        mSlidingMenu.setBehindCanvasTransformer(new ListenerCanvasTransformer(this));
+        mDrawerLayout.setDrawerShadow(R.drawable.drawer_shadow_start, GravityCompat.START);
         final Window window = getWindow();
-        ThemeUtils.applyWindowBackground(this, mSlidingMenu.getContent(), getCurrentThemeResourceId(),
+        ThemeUtils.applyWindowBackground(this, mHomeContent, getCurrentThemeResourceId(),
                 getThemeBackgroundOption(), getCurrentThemeBackgroundAlpha());
         window.setBackgroundDrawable(new EmptyDrawable());
-
-        mSlidingMenu.addIgnoredView(mActionBarContainer);
     }
 
     private void showDataProfilingRequest() {
@@ -940,19 +890,14 @@ public class HomeActivity extends BaseAppCompatActivity implements OnClickListen
         mActionsButton.setLayoutParams(lp);
     }
 
-    private void updateDrawerPercentOpen(final float percentOpen, final boolean horizontalScroll) {
-        if (mLeftDrawerContainer == null) return;
-        mLeftDrawerContainer.setPercentOpen(percentOpen);
-    }
-
     private void updateSlidingMenuTouchMode() {
-        if (mViewPager == null || mSlidingMenu == null) return;
-        final int position = mViewPager.getCurrentItem();
-        final boolean pagingEnabled = mViewPager.isEnabled();
-        final boolean atFirstOrLast = position == 0 || position == mPagerAdapter.getCount() - 1;
-        final int mode = !pagingEnabled || atFirstOrLast ? SlidingMenu.TOUCHMODE_FULLSCREEN
-                : SlidingMenu.TOUCHMODE_MARGIN;
-        mSlidingMenu.setTouchModeAbove(mode);
+//        if (mViewPager == null || mSlidingMenu == null) return;
+//        final int position = mViewPager.getCurrentItem();
+//        final boolean pagingEnabled = mViewPager.isEnabled();
+//        final boolean atFirstOrLast = position == 0 || position == mPagerAdapter.getCount() - 1;
+//        final int mode = !pagingEnabled || atFirstOrLast ? SlidingMenu.TOUCHMODE_FULLSCREEN
+//                : SlidingMenu.TOUCHMODE_MARGIN;
+//        mSlidingMenu.setTouchModeAbove(mode);
     }
 
     private static final class AccountChangeObserver extends ContentObserver {
@@ -973,20 +918,6 @@ public class HomeActivity extends BaseAppCompatActivity implements OnClickListen
             mActivity.notifyAccountsChanged();
             mActivity.updateUnreadCount();
         }
-    }
-
-    private static class ListenerCanvasTransformer implements CanvasTransformer {
-        private final HomeActivity mHomeActivity;
-
-        public ListenerCanvasTransformer(final HomeActivity homeActivity) {
-            mHomeActivity = homeActivity;
-        }
-
-        @Override
-        public void transformCanvas(final Canvas canvas, final float percentOpen) {
-            mHomeActivity.updateDrawerPercentOpen(percentOpen, true);
-        }
-
     }
 
     private static class UpdateUnreadCountTask extends AsyncTask<Object, Object, Map<SupportTabSpec, Integer>> {

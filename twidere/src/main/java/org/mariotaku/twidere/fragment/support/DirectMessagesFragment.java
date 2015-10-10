@@ -39,12 +39,11 @@ import android.view.KeyEvent;
 import android.view.MenuItem;
 import android.view.View;
 
-import com.squareup.otto.Bus;
 import com.squareup.otto.Subscribe;
 
-import org.mariotaku.querybuilder.Columns.Column;
-import org.mariotaku.querybuilder.Expression;
-import org.mariotaku.querybuilder.RawItemArray;
+import org.mariotaku.sqliteqb.library.Columns.Column;
+import org.mariotaku.sqliteqb.library.Expression;
+import org.mariotaku.sqliteqb.library.RawItemArray;
 import org.mariotaku.twidere.R;
 import org.mariotaku.twidere.activity.iface.IControlBarActivity;
 import org.mariotaku.twidere.activity.support.HomeActivity;
@@ -52,7 +51,6 @@ import org.mariotaku.twidere.adapter.MessageEntriesAdapter;
 import org.mariotaku.twidere.adapter.MessageEntriesAdapter.DirectMessageEntry;
 import org.mariotaku.twidere.adapter.MessageEntriesAdapter.MessageEntriesAdapterListener;
 import org.mariotaku.twidere.adapter.decorator.DividerItemDecoration;
-import org.mariotaku.twidere.app.TwidereApplication;
 import org.mariotaku.twidere.provider.TwidereDataStore.Accounts;
 import org.mariotaku.twidere.provider.TwidereDataStore.DirectMessages;
 import org.mariotaku.twidere.provider.TwidereDataStore.DirectMessages.Inbox;
@@ -71,6 +69,8 @@ import java.util.Collections;
 import java.util.HashSet;
 import java.util.Set;
 
+import javax.inject.Inject;
+
 import static org.mariotaku.twidere.util.Utils.openMessageConversation;
 
 public class DirectMessagesFragment extends AbsContentRecyclerViewFragment<MessageEntriesAdapter>
@@ -80,8 +80,6 @@ public class DirectMessagesFragment extends AbsContentRecyclerViewFragment<Messa
     private final SupportFragmentReloadCursorObserver mReloadContentObserver = new SupportFragmentReloadCursorObserver(
             this, 0, this);
 
-    // Utility classes
-    private MultiSelectManager mMultiSelectManager;
     private RemoveUnreadCountsTask mRemoveUnreadCountsTask;
     private RecyclerViewNavigationHelper mNavigationHelper;
 
@@ -111,7 +109,7 @@ public class DirectMessagesFragment extends AbsContentRecyclerViewFragment<Messa
 
     @Override
     public boolean isRefreshing() {
-        final AsyncTwitterWrapper twitter = getTwitterWrapper();
+        final AsyncTwitterWrapper twitter = mTwitterWrapper;
         return twitter != null && (twitter.isReceivedDirectMessagesRefreshing() || twitter.isSentDirectMessagesRefreshing());
     }
 
@@ -122,19 +120,25 @@ public class DirectMessagesFragment extends AbsContentRecyclerViewFragment<Messa
     @Override
     public boolean handleKeyboardShortcutRepeat(@NonNull final KeyboardShortcutsHandler handler,
                                                 final int keyCode, final int repeatCount,
-                                                @NonNull final KeyEvent event) {
-        return mNavigationHelper.handleKeyboardShortcutRepeat(handler, keyCode, repeatCount, event);
+                                                @NonNull final KeyEvent event, int metaState) {
+        return mNavigationHelper.handleKeyboardShortcutRepeat(handler, keyCode, repeatCount, event, metaState);
     }
 
     @Override
     public boolean handleKeyboardShortcutSingle(@NonNull final KeyboardShortcutsHandler handler,
-                                                final int keyCode, @NonNull final KeyEvent event) {
-        String action = handler.getKeyAction(CONTEXT_TAG_NAVIGATION, keyCode, event);
+                                                final int keyCode, @NonNull final KeyEvent event, int metaState) {
+        final String action = handler.getKeyAction(CONTEXT_TAG_NAVIGATION, keyCode, event, metaState);
         if (ACTION_NAVIGATION_REFRESH.equals(action)) {
             triggerRefresh();
             return true;
         }
         return false;
+    }
+
+    @Override
+    public boolean isKeyboardShortcutHandled(@NonNull KeyboardShortcutsHandler handler, int keyCode, @NonNull KeyEvent event, int metaState) {
+        final String action = handler.getKeyAction(CONTEXT_TAG_NAVIGATION, keyCode, event, metaState);
+        return ACTION_NAVIGATION_REFRESH.equals(action) || mNavigationHelper.isKeyboardShortcutHandled(handler, keyCode, event, metaState);
     }
 
 
@@ -203,7 +207,7 @@ public class DirectMessagesFragment extends AbsContentRecyclerViewFragment<Messa
     public boolean scrollToStart() {
         final boolean result = super.scrollToStart();
         if (result) {
-            final AsyncTwitterWrapper twitter = getTwitterWrapper();
+            final AsyncTwitterWrapper twitter = mTwitterWrapper;
             final int tabPosition = getTabPosition();
             if (twitter != null && tabPosition >= 0) {
                 twitter.clearUnreadCountAsync(tabPosition);
@@ -226,7 +230,7 @@ public class DirectMessagesFragment extends AbsContentRecyclerViewFragment<Messa
 
             @Override
             protected void onPostExecute(final long[][] result) {
-                final AsyncTwitterWrapper twitter = getTwitterWrapper();
+                final AsyncTwitterWrapper twitter = mTwitterWrapper;
                 if (twitter == null) return;
                 twitter.getReceivedDirectMessagesAsync(result[0], null, result[1]);
                 twitter.getSentDirectMessagesAsync(result[0], null, null);
@@ -243,7 +247,6 @@ public class DirectMessagesFragment extends AbsContentRecyclerViewFragment<Messa
         final View view = getView();
         if (view == null) throw new AssertionError();
         final Context viewContext = view.getContext();
-        mMultiSelectManager = getMultiSelectManager();
         final MessageEntriesAdapter adapter = getAdapter();
         final RecyclerView recyclerView = getRecyclerView();
         final LinearLayoutManager layoutManager = getLayoutManager();
@@ -268,8 +271,7 @@ public class DirectMessagesFragment extends AbsContentRecyclerViewFragment<Messa
         super.onStart();
         final ContentResolver resolver = getContentResolver();
         resolver.registerContentObserver(Accounts.CONTENT_URI, true, mReloadContentObserver);
-        final Bus bus = TwidereApplication.getInstance(getActivity()).getMessageBus();
-        bus.register(this);
+        mBus.register(this);
         final MessageEntriesAdapter adapter = getAdapter();
         adapter.updateReadState();
         updateRefreshState();
@@ -277,8 +279,7 @@ public class DirectMessagesFragment extends AbsContentRecyclerViewFragment<Messa
 
     @Override
     public void onStop() {
-        final Bus bus = TwidereApplication.getInstance(getActivity()).getMessageBus();
-        bus.unregister(this);
+        mBus.unregister(this);
         final ContentResolver resolver = getContentResolver();
         resolver.unregisterContentObserver(mReloadContentObserver);
         super.onStop();
@@ -288,7 +289,7 @@ public class DirectMessagesFragment extends AbsContentRecyclerViewFragment<Messa
     @Override
     public boolean onOptionsItemSelected(final MenuItem item) {
         switch (item.getItemId()) {
-            case MENU_COMPOSE: {
+            case R.id.compose: {
                 openMessageConversation(getActivity(), -1, -1);
                 break;
             }
@@ -302,7 +303,10 @@ public class DirectMessagesFragment extends AbsContentRecyclerViewFragment<Messa
         final FragmentActivity activity = getActivity();
         if (isVisibleToUser && activity != null) {
             final NotificationManager nm = (NotificationManager) activity.getSystemService(Context.NOTIFICATION_SERVICE);
-            nm.cancel(NOTIFICATION_ID_MENTIONS_TIMELINE);
+            for (long accountId : getAccountIds()) {
+                final String tag = "messages_" + accountId;
+                nm.cancel(tag, NOTIFICATION_ID_DIRECT_MESSAGES);
+            }
         }
     }
 
@@ -324,7 +328,7 @@ public class DirectMessagesFragment extends AbsContentRecyclerViewFragment<Messa
     }
 
     protected void updateRefreshState() {
-        final AsyncTwitterWrapper twitter = getTwitterWrapper();
+        final AsyncTwitterWrapper twitter = mTwitterWrapper;
         setRefreshing(twitter != null && (twitter.isReceivedDirectMessagesRefreshing() || twitter.isSentDirectMessagesRefreshing()));
     }
 
@@ -363,7 +367,7 @@ public class DirectMessagesFragment extends AbsContentRecyclerViewFragment<Messa
 
             @Override
             protected void onPostExecute(final long[][] result) {
-                final AsyncTwitterWrapper twitter = getTwitterWrapper();
+                final AsyncTwitterWrapper twitter = mTwitterWrapper;
                 if (twitter == null) return;
                 twitter.getReceivedDirectMessagesAsync(result[0], result[1], null);
                 twitter.getSentDirectMessagesAsync(result[0], result[2], null);
@@ -402,7 +406,7 @@ public class DirectMessagesFragment extends AbsContentRecyclerViewFragment<Messa
 
         @Override
         protected void onPostExecute(final Object result) {
-            final AsyncTwitterWrapper twitter = fragment.getTwitterWrapper();
+            final AsyncTwitterWrapper twitter = fragment.mTwitterWrapper;
             if (twitter != null) {
                 twitter.removeUnreadCountsAsync(fragment.getTabPosition(), fragment.getUnreadCountsToRemove());
             }

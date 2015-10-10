@@ -30,10 +30,8 @@ import android.view.ViewGroup;
 import org.mariotaku.twidere.Constants;
 import org.mariotaku.twidere.R;
 import org.mariotaku.twidere.adapter.iface.IUserListsAdapter;
-import org.mariotaku.twidere.app.TwidereApplication;
 import org.mariotaku.twidere.util.AsyncTwitterWrapper;
 import org.mariotaku.twidere.util.MediaLoaderWrapper;
-import org.mariotaku.twidere.util.SharedPreferencesWrapper;
 import org.mariotaku.twidere.util.ThemeUtils;
 import org.mariotaku.twidere.util.UserColorNameManager;
 import org.mariotaku.twidere.util.Utils;
@@ -47,35 +45,28 @@ public abstract class AbsUserListsAdapter<D> extends LoadMoreSupportAdapter<View
 
     private final Context mContext;
     private final LayoutInflater mInflater;
-    private final MediaLoaderWrapper mMediaLoader;
 
     private final int mCardBackgroundColor;
     private final boolean mCompactCards;
     private final int mProfileImageStyle;
     private final int mTextSize;
-    private final AsyncTwitterWrapper mTwitterWrapper;
     private final boolean mDisplayProfileImage;
 
-    private final UserColorNameManager mUserColorNameManager;
     private final boolean mNameFirst;
 
     public AbsUserListsAdapter(final Context context, final boolean compact) {
-        final TwidereApplication app = TwidereApplication.getInstance(context);
+        super(context);
         mContext = context;
         mCardBackgroundColor = ThemeUtils.getCardBackgroundColor(context, ThemeUtils.getThemeBackgroundOption(context), ThemeUtils.getUserThemeBackgroundAlpha(context));
         mInflater = LayoutInflater.from(context);
-        mMediaLoader = app.getMediaLoaderWrapper();
-        mUserColorNameManager = app.getUserColorNameManager();
-        mTwitterWrapper = app.getTwitterWrapper();
-        final SharedPreferencesWrapper preferences = SharedPreferencesWrapper.getInstance(context,
-                SHARED_PREFERENCES_NAME, Context.MODE_PRIVATE);
-        mTextSize = preferences.getInt(KEY_TEXT_SIZE, context.getResources().getInteger(R.integer.default_text_size));
-        mProfileImageStyle = Utils.getProfileImageStyle(preferences.getString(KEY_PROFILE_IMAGE_STYLE, null));
-        mDisplayProfileImage = preferences.getBoolean(KEY_DISPLAY_PROFILE_IMAGE, true);
-        mNameFirst = preferences.getBoolean(KEY_NAME_FIRST, true);
+        mTextSize = mPreferences.getInt(KEY_TEXT_SIZE, context.getResources().getInteger(R.integer.default_text_size));
+        mProfileImageStyle = Utils.getProfileImageStyle(mPreferences.getString(KEY_PROFILE_IMAGE_STYLE, null));
+        mDisplayProfileImage = mPreferences.getBoolean(KEY_DISPLAY_PROFILE_IMAGE, true);
+        mNameFirst = mPreferences.getBoolean(KEY_NAME_FIRST, true);
         mCompactCards = compact;
     }
 
+    @NonNull
     @Override
     public Context getContext() {
         return mContext;
@@ -97,6 +88,7 @@ public abstract class AbsUserListsAdapter<D> extends LoadMoreSupportAdapter<View
         return mTwitterWrapper;
     }
 
+    @NonNull
     @Override
     public UserColorNameManager getUserColorNameManager() {
         return mUserColorNameManager;
@@ -193,6 +185,7 @@ public abstract class AbsUserListsAdapter<D> extends LoadMoreSupportAdapter<View
         return false;
     }
 
+    @NonNull
     @Override
     public MediaLoaderWrapper getMediaLoader() {
         return mMediaLoader;

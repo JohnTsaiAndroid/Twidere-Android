@@ -19,6 +19,7 @@
 
 package org.mariotaku.twidere.activity;
 
+import android.Manifest;
 import android.app.Activity;
 import android.app.AlertDialog;
 import android.app.Dialog;
@@ -31,11 +32,13 @@ import android.content.DialogInterface;
 import android.content.Intent;
 import android.content.SharedPreferences;
 import android.os.AsyncTask;
+import android.os.Build;
 import android.os.Bundle;
 import android.preference.Preference;
 import android.preference.Preference.OnPreferenceClickListener;
 import android.preference.PreferenceActivity;
 import android.preference.PreferenceScreen;
+import android.support.annotation.NonNull;
 import android.support.v4.view.ViewPager;
 import android.view.LayoutInflater;
 import android.view.View;
@@ -64,6 +67,7 @@ import org.mariotaku.twidere.util.AsyncTaskUtils;
 import org.mariotaku.twidere.util.CustomTabUtils;
 import org.mariotaku.twidere.util.MathUtils;
 import org.mariotaku.twidere.util.ParseUtils;
+import org.mariotaku.twidere.util.Utils;
 import org.mariotaku.twidere.view.LinePageIndicator;
 
 import java.io.File;
@@ -118,8 +122,7 @@ public class SettingsWizardActivity extends Activity implements Constants {
 
     public void gotoLastPage() {
         if (mViewPager == null || mAdapter == null) return;
-        final int last = mAdapter.getCount() - 2;
-        mViewPager.setCurrentItem(Math.max(last, 0));
+        gotoPage(getPageCount() - 2);
     }
 
     public void gotoNextPage() {
@@ -334,6 +337,26 @@ public class SettingsWizardActivity extends Activity implements Constants {
             return R.xml.settings_wizard_page_hints;
         }
 
+        @Override
+        public void onRequestPermissionsResult(int requestCode, @NonNull String[] permissions, @NonNull int[] grantResults) {
+            super.onRequestPermissionsResult(requestCode, permissions, grantResults);
+            super.gotoNextPage();
+        }
+
+        @Override
+        public void gotoNextPage() {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                final String[] permissions = {Manifest.permission.ACCESS_FINE_LOCATION,
+                        Manifest.permission.ACCESS_COARSE_LOCATION,
+                        Manifest.permission.READ_EXTERNAL_STORAGE,
+                        Manifest.permission.WRITE_EXTERNAL_STORAGE};
+                requestPermissions(permissions, REQUEST_REQUEST_PERMISSIONS);
+            } else {
+                // Try getting location, some custom rom will popup requirement dialog
+                Utils.getCachedLocation(getActivity());
+                super.gotoNextPage();
+            }
+        }
     }
 
     public static class WizardPageTabsFragment extends BaseWizardPageFragment {
@@ -598,9 +621,18 @@ public class SettingsWizardActivity extends Activity implements Constants {
 
         @Override
         protected void nextStep() {
-            getActivity().gotoLastPage();
+            final SettingsWizardActivity activity = getActivity();
+            activity.gotoPage(activity.getPageCount() - 3);
         }
 
+    }
+
+    private void gotoPage(int page) {
+        mViewPager.setCurrentItem(MathUtils.clamp(page, 0, getPageCount() - 1));
+    }
+
+    private int getPageCount() {
+        return mAdapter.getCount();
     }
 
     static class InitialTabSettingsTask extends AbsInitialSettingsTask {

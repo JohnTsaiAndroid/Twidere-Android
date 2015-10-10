@@ -42,7 +42,9 @@
   <string name="select_account">Sélectionner un compte</string>
   <string name="username">Nom d\'utilisateur</string>
   <string name="password">Mot de passe</string>
+  <string name="label_data_provider">Fournisseur de base de donnée pour Twidere</string>
   <string name="label_refresh_service">Refraîcher le service</string>
+  <string name="label_streaming_service">Service de streaming</string>
   <string name="label_background_operation_service">Service en arrière-plan</string>
   <string name="open_in_browser">Ouvrir dans un navigateur</string>
   <string name="tap_to_load_more">Touchez pour charger plus</string>
@@ -241,6 +243,7 @@
   <string name="status_shortener">Raccourcisseur de tweet</string>
   <string name="status_shortener_default">Aucun (Annuler l\'envoi)</string>
   <string name="error_message_status_too_long">Tweet trop long.</string>
+  <string name="error_message_message_too_long">Message trop long.</string>
   <string name="error_message_no_content">Aucun contenu</string>
   <string name="error_message_tweet_shorten_failed">Le raccourcissement du tweet a échoué.</string>
   <string name="error_message_tweet_shortener_not_found">Le raccourcisseur de tweet est introuvable, il a peut-être été désinstallé.</string>
@@ -275,6 +278,10 @@
   <string name="activity_about_me_retweet_multi"><xliff:g id="user">%1$s</xliff:g> et <xliff:g id="other">%2$s</xliff:g> ont retweeté votre publication.</string>
   <string name="activity_about_me_retweeted_retweet"><xliff:g id="user">%s</xliff:g> a retweeté votre retweet.</string>
   <string name="activity_about_me_retweeted_retweet_multi"><xliff:g id="user">%1$s</xliff:g> et <xliff:g id="other">%2$s</xliff:g> ont retweeté votre retweet.</string>
+  <string name="activity_about_me_retweeted_mention"><xliff:g id="user">%s</xliff:g> a retweeté un tweet vous mentionnant.</string>
+  <string name="activity_about_me_retweeted_mention_multi"><xliff:g id="user">%s</xliff:g> et <xliff:g id="other">%2$s</xliff:g> ont retweeté un tweet vous mentionnant.</string>
+  <string name="activity_about_me_favorited_mention"><xliff:g id="user">%s</xliff:g> a mis en favoris un tweet qui vous mentionne.</string>
+  <string name="activity_about_me_favorited_mention_multi"><xliff:g id="user">%s</xliff:g> et <xliff:g id="other">%2$s</xliff:g> ont mis en favoris un tweet qui vous mentionne.</string>
   <string name="activity_about_me_list_member_added"><xliff:g id="user">%s</xliff:g> vous a ajouté à une liste.</string>
   <string name="activity_about_me_list_member_added_with_name"><xliff:g id="user">%1$s</xliff:g> vous a ajouté à la liste <xliff:g id="list">%2$s</xliff:g>\".</string>
   <string name="activity_about_me_list_member_added_multi"><xliff:g id="user">%1$s</xliff:g> et <xliff:g id="other">%2$s</xliff:g> vous ont ajouté à leurs listes.</string>
@@ -283,7 +290,9 @@
   <string name="activity_by_friends_follow"><xliff:g id="user">%1$s</xliff:g> suit <xliff:g id="target">%2$s</xliff:g>.</string>
   <string name="activity_by_friends_follow_multi"><xliff:g id="user">%1$s</xliff:g> suit <xliff:g id="target">%2$s</xliff:g> et <xliff:g id="other">%3$s</xliff:g>.</string>
   <string name="activity_by_friends_retweet"><xliff:g id="user">%1$s</xliff:g> a retweeté le tweet de <xliff:g id="target">%2$s</xliff:g>.</string>
+  <string name="activity_by_friends_retweet_multi"><xliff:g id="user">%1$s</xliff:g> a retweeté les tweets de <xliff:g id="target">%2$s</xliff:g> et de <xliff:g id="other">%3$s</xliff:g>.</string>
   <string name="activity_by_friends_list_member_added"><xliff:g id="user">%1$s</xliff:g> a ajouté <xliff:g id="target">%2$s</xliff:g> à la liste.</string>
+  <string name="activity_by_friends_list_member_added_multi"><xliff:g id="user">%1$s</xliff:g> a ajouté <xliff:g id="target">%2$s</xliff:g> et <xliff:g id="other">%1$s</xliff:g> à une liste.</string>
   <string name="activity_by_friends_list_created"><xliff:g id="user">%1$s</xliff:g> a créé la liste <xliff:g id="target">%2$s</xliff:g>.</string>
   <string name="activity_by_friends_list_created_multi"><xliff:g id="user">%1$s</xliff:g> a créé la liste <xliff:g id="target">%2$s</xliff:g> et <xliff:g id="other">%1$s</xliff:g>.</string>
   <string name="status_not_updated">Tweet non envoyé.</string>
@@ -342,6 +351,7 @@
   <string name="hashtag">Hashtag</string>
   <string name="links">Liens</string>
   <string name="edit_profile">Modifier le profil</string>
+  <string name="edit_details">Editer les détails</string>
   <string name="display_sensitive_contents">Afficher le contenu qui peut être sensible</string>
   <string name="display_sensitive_contents_summary">Afficher le contenu qui peut être sensible sans avertissement dans votre fil d\'actualité</string>
   <string name="sensitive_content_warning">Ce tweet a peut-être un contenu sensible, continuer ?</string>
@@ -376,7 +386,7 @@
   <string name="preview_images">Prévisualisation des images</string>
   <string name="preload_wifi_only">Précharger seulement en Wi-Fi</string>
   <string name="sign_in_method_introduction_title">Comment ça marche ?</string>
-  <string name="sign_in_method_introduction">La plupart des clients comme Twicca ouvrent un navigateur et vous demandent de saisir votre nom d\'utilisateur et votre mot de passe, pour ensuite vous ramener à l\'application. Cela peut parfois être très gênant.\n\nTwidere utilise des moyens plus simples pour se connecter, sans ouvrir de navigateur. Ne vous inquiétez pas pour votre mot de passe, Twidere ne l\'enregistrera jamais, c\'est totalement sécurisé !</string>
+  <string name="sign_in_method_introduction">La plupart des applications ouvre une page web pour autoriser l’accès à Twitter, cela pourrait être gênant lors de l\'utilisation API personnalisé, ou sur un réseau lent. Twidere simule un navigateur normal pour aider à se connecter à Twitter. Ne vous inquiétez pas, votre mot de passe ne sera jamais stocké ni fuité.</string>
   <string name="quote_protected_status_notice">Il n\'est pas recommandé de citer un tweet protégé.</string>
   <string name="edit_draft">Modifier brouillons</string>
   <string name="profile_image">Photo de profil</string>
@@ -403,6 +413,7 @@
   <string name="search_name_deleted">Recherche \"<xliff:g id="name">%s</xliff:g>\" supprimée.</string>
   <string name="import_from">Importer depuis&#8230;</string>
   <string name="link_to_quoted_status">Lien vers le tweet cité</string>
+  <string name="quote_original_status">Citer le tweet original</string>
   <string name="followed_user">Abonné à <xliff:g id="user">%s</xliff:g>.</string>
   <string name="sent_follow_request_to_user">Demande d\'abonnement à <xliff:g id="user">%s</xliff:g> envoyée.</string>
   <string name="unfollowed_user">Désabonné de <xliff:g id="user">%s</xliff:g>.</string>
@@ -528,7 +539,7 @@
   <string name="theme_background_solid">Blanc/noir pur</string>
   <string name="theme_background_transparent">Transparent</string>
   <string name="theme_dark_actionbar">«ActionBar» sombre</string>
-  <string name="wizard_hint_compose_select_account">Cliquer ce cette icône lorsque vous écrivez un tweet pour séléctionner le compte.</string>
+  <string name="wizard_hint_compose_select_account">Cliquez sur l\'image de profil pour sélectionner un compte lorsque vous composez un tweet.</string>
   <string name="wizard_hint_quote_format">Configurer le format de citation favori dans \"Paramètres\" - \"Contenu &amp; Stockage\"</string>
   <string name="wizard_hint_filters">Vous pouvez cacher les tweets indésirables du fil d\'actualité et des notifications en utilisant les \"Filtres\".</string>
   <string name="view_replies">Voir les réponses</string>
@@ -639,7 +650,11 @@
   <string name="state_blocking">Bloquant</string>
   <string name="load_more">Plus de contenu</string>
   <string name="photo">Photo</string>
+  <string name="camera">Appareil photo</string>
   <string name="gallery">Gallerie</string>
+  <string name="source_camera">Appareil photo</string>
+  <string name="source_gallery">Gallerie</string>
+  <string name="source_clipboard">Presse-papiers</string>
   <string name="remove">Supprimer</string>
   <string name="load_media">Charger le média</string>
   <string name="profile_text_color">Couleur du texte</string>
@@ -663,6 +678,8 @@
   <string name="members">Membres</string>
   <string name="subscribers">Abonné</string>
   <string name="read_from_bottom">Lire depuis le bas</string>
+  <string name="read_from_bottom_summary_off">Allez au dernier tweet après rafraichissement</string>
+  <string name="read_from_bottom_summary_on">Garder la position de lecture après l\'actualisation</string>
   <string name="register">S\'inscrire</string>
   <string name="follows">Suit</string>
   <string name="belongs_to">Appartient à</string>
@@ -674,12 +691,9 @@
   <string name="getting_location">Obtenir la localisation</string>
   <string name="save_to_gallery">Enregistrer dans la galerie</string>
   <string name="usage_statistics">Statistiques d\'utilisation</string>
-  <string name="research_ucdavis_earlybird">UCDavis Earlybird</string>
-  <string name="research_tsinghua_spice">Tsinghua Spice</string>
+  <string name="research_hot_mobile">Recherche de réseaux mobiles 3G</string>
   <string name="unknown_location">Localisation inconnue</string>
   <string name="ellipsis">&#8230;</string>
-  <string name="designed_by">Design conçu par</string>
-  <string name="designer_name">Uucky Lee</string>
   <string name="import_export_settings">Importer/Exporter des paramètres</string>
   <string name="usage_statistics_header_summary">Twidere prend part à quelques projets de recherche, rejoindre ces projets vont rendre Twidere et d\'autres applications encore meilleures.</string>
   <string name="no_tab">Aucun onglet</string>
@@ -723,4 +737,45 @@
   <string name="navigation">Naviguation</string>
   <string name="reset_to_default">Remettre par défaut</string>
   <string name="reset_keyboard_shortcuts_confirm">Remettre les raccourcis clavier par défaut ?</string>
+  <string name="open_accounts_dashboard">Ouvrir le gestionnaire de comptes</string>
+  <string name="previous_tab">Onglet précédent</string>
+  <string name="next_tab">Onglet suivant</string>
+  <string name="keyboard_shortcut_back">Retour</string>
+  <string name="press_again_to_close">Appuyer une nouvelle fois pour fermer</string>
+  <string name="name_not_set"><xliff:g id="name">%s</xliff:g> non défini</string>
+  <string name="swipe_down_to_refresh">Tirer vers le bas pour rafraîchir</string>
+  <string name="app_restart_confirm">Twidere va redémarrer pour appliquer les paramètres.</string>
+  <string name="dont_restart">Ne pas redémarrer</string>
+  <string name="user_list_details">Détails de la liste</string>
+  <string name="invalid_list_name">Doit commencer avec une lettre et n\'être composé que de lettres, nombres, \"-\" ou \"_\".</string>
+  <string name="delete_conversation">Supprimer la conversation</string>
+  <string name="delete_conversation_confirm_message">Supprimer tous les messages de cette conversation ?</string>
+  <string name="name_first_summary_on">Afficher le nom en premier</string>
+  <string name="name_first_summary_off">Afficher \@utilisateur d\'abord</string>
+  <string name="comment_hint">Commenter&#8230;</string>
+  <string name="comment">Commenter</string>
+  <string name="enable_retweets">Activer les retweets</string>
+  <string name="disable_retweets">Désactiver les retweets</string>
+  <string name="play">Démarrer</string>
+  <string name="pause">Mettre en pause</string>
+  <string name="jump_to_top">Aller en haut</string>
+  <string name="timeline_streaming_running">Stream de la timeline en cours</string>
+  <string name="streaming">Streaming</string>
+  <string name="enable_streaming">Activer le streaming</string>
+  <string name="dark_theme">Thème sombre</string>
+  <string name="wizard_hint_title_location_requirement">Permission de localisation</string>
+  <string name="wizard_hint_summary_location_requirement">Twidere a besoin de votre permission pour la localisation quand vous envoyez un tweet contenant la localisation.</string>
+  <string name="scrapyard">Divers</string>
+  <string name="crop_image">Rogner l\'image</string>
+  <string name="usage_label_sent">Envoyé</string>
+  <string name="usage_label_received">Reçu</string>
+  <string name="this_month">Ce mois</string>
+  <string name="media_preload">Précharger le média</string>
+  <string name="on_mobile_network">Sur le réseau mobile</string>
+  <string name="set_consumer_key_secret_message">Twidere a atteint sa limite de requêtes autorisées, vous devez désormais créer une app sur https://apps.twitter.com/ et copier ci-dessous votre nouvelle clé client. \nSi vous continuez à utiliser la clé par défaut, vous ne pourrez plus vous connecter.</string>
+  <string name="send_at">Envoyé à</string>
+  <string name="scheduled_statuses">Tweets prévus</string>
+  <string name="report_usage_statistics_now">Rapport immédiat des statistiques d\'utilisation</string>
+  <string name="cache_size_limit">Taille limite du cache</string>
+  <string name="bug_reports">Rapports de bugs</string>
 </resources>

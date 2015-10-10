@@ -36,17 +36,52 @@ import android.support.v4.view.LayoutInflaterFactory;
 import android.view.LayoutInflater;
 import android.view.View;
 
+import com.squareup.otto.Bus;
+
 import org.mariotaku.twidere.Constants;
 import org.mariotaku.twidere.activity.iface.IThemedActivity;
 import org.mariotaku.twidere.activity.support.BaseAppCompatActivity;
 import org.mariotaku.twidere.app.TwidereApplication;
 import org.mariotaku.twidere.fragment.iface.IBaseFragment;
+import org.mariotaku.twidere.util.AsyncTaskManager;
 import org.mariotaku.twidere.util.AsyncTwitterWrapper;
+import org.mariotaku.twidere.util.MediaLoaderWrapper;
 import org.mariotaku.twidere.util.MultiSelectManager;
 import org.mariotaku.twidere.util.ReadStateManager;
+import org.mariotaku.twidere.util.SharedPreferencesWrapper;
 import org.mariotaku.twidere.util.ThemedLayoutInflaterFactory;
+import org.mariotaku.twidere.util.UserColorNameManager;
+import org.mariotaku.twidere.util.VideoLoader;
+import org.mariotaku.twidere.util.dagger.ApplicationModule;
+import org.mariotaku.twidere.util.dagger.DaggerGeneralComponent;
+
+import javax.inject.Inject;
 
 public class BaseSupportFragment extends Fragment implements IBaseFragment, Constants {
+
+    // Utility classes
+    @Inject
+    protected AsyncTwitterWrapper mTwitterWrapper;
+    @Inject
+    protected ReadStateManager mReadStateManager;
+    @Inject
+    protected MediaLoaderWrapper mMediaLoader;
+    @Inject
+    protected VideoLoader mVideoLoader;
+    @Inject
+    protected Bus mBus;
+    @Inject
+    protected AsyncTaskManager mAsyncTaskManager;
+    @Inject
+    protected MultiSelectManager mMultiSelectManager;
+    @Inject
+    protected UserColorNameManager mUserColorNameManager;
+    @Inject
+    protected SharedPreferencesWrapper mPreferences;
+
+    public BaseSupportFragment() {
+
+    }
 
     @Override
     public final void onViewCreated(View view, @Nullable Bundle savedInstanceState) {
@@ -55,9 +90,12 @@ public class BaseSupportFragment extends Fragment implements IBaseFragment, Cons
         requestFitSystemWindows();
     }
 
-    public BaseSupportFragment() {
-
+    @Override
+    public void onAttach(Context context) {
+        super.onAttach(context);
+        DaggerGeneralComponent.builder().applicationModule(ApplicationModule.get(context)).build().inject(this);
     }
+
 
     public TwidereApplication getApplication() {
         final Activity activity = getActivity();
@@ -69,10 +107,6 @@ public class BaseSupportFragment extends Fragment implements IBaseFragment, Cons
         final Activity activity = getActivity();
         if (activity != null) return activity.getContentResolver();
         return null;
-    }
-
-    public MultiSelectManager getMultiSelectManager() {
-        return getApplication() != null ? getApplication().getMultiSelectManager() : null;
     }
 
     public SharedPreferences getSharedPreferences(final String name, final int mode) {
@@ -87,13 +121,6 @@ public class BaseSupportFragment extends Fragment implements IBaseFragment, Cons
         return null;
     }
 
-    public AsyncTwitterWrapper getTwitterWrapper() {
-        return getApplication() != null ? getApplication().getTwitterWrapper() : null;
-    }
-
-    public ReadStateManager getReadStateManager() {
-        return getApplication() != null ? getApplication().getReadStateManager() : null;
-    }
 
     public void invalidateOptionsMenu() {
         final FragmentActivity activity = getActivity();

@@ -30,6 +30,7 @@ import android.text.TextUtils;
 import com.bluelinelabs.logansquare.LoganSquare;
 import com.bluelinelabs.logansquare.annotation.JsonField;
 import com.bluelinelabs.logansquare.annotation.JsonObject;
+import com.bluelinelabs.logansquare.annotation.OnJsonParseComplete;
 import com.hannesdorfmann.parcelableplease.annotation.ParcelablePlease;
 import com.hannesdorfmann.parcelableplease.annotation.ParcelableThisPlease;
 
@@ -58,20 +59,9 @@ import java.util.Map.Entry;
 @ParcelablePlease(allFields = false)
 public class ParcelableStatus implements Parcelable, Comparable<ParcelableStatus> {
 
-    public static final Parcelable.Creator<ParcelableStatus> CREATOR = new Parcelable.Creator<ParcelableStatus>() {
-        @Override
-        public ParcelableStatus createFromParcel(final Parcel in) {
-            ParcelableStatus status = new ParcelableStatus();
-            ParcelableStatusParcelablePlease.readFromParcel(status, in);
-            return status;
-        }
-
-        @Override
-        public ParcelableStatus[] newArray(final int size) {
-            return new ParcelableStatus[size];
-        }
-    };
-
+    @ParcelableThisPlease
+    @JsonField(name = "id")
+    public long id;
     public static final Comparator<ParcelableStatus> REVERSE_ID_COMPARATOR = new Comparator<ParcelableStatus>() {
 
         @Override
@@ -82,7 +72,12 @@ public class ParcelableStatus implements Parcelable, Comparable<ParcelableStatus
             return (int) diff;
         }
     };
-
+    @ParcelableThisPlease
+    @JsonField(name = "account_id")
+    public long account_id;
+    @ParcelableThisPlease
+    @JsonField(name = "timestamp")
+    public long timestamp;
     public static final Comparator<ParcelableStatus> TIMESTAMP_COMPARATOR = new Comparator<ParcelableStatus>() {
 
         @Override
@@ -93,16 +88,6 @@ public class ParcelableStatus implements Parcelable, Comparable<ParcelableStatus
             return (int) diff;
         }
     };
-
-    @ParcelableThisPlease
-    @JsonField(name = "id")
-    public long id;
-    @ParcelableThisPlease
-    @JsonField(name = "account_id")
-    public long account_id;
-    @ParcelableThisPlease
-    @JsonField(name = "timestamp")
-    public long timestamp;
     @ParcelableThisPlease
     @JsonField(name = "user_id")
     public long user_id;
@@ -125,9 +110,6 @@ public class ParcelableStatus implements Parcelable, Comparable<ParcelableStatus
     @JsonField(name = "reply_count")
     public long reply_count;
     @ParcelableThisPlease
-    @JsonField(name = "descendent_reply_count")
-    public long descendent_reply_count;
-    @ParcelableThisPlease
     @JsonField(name = "in_reply_to_status_id")
     public long in_reply_to_status_id;
     @ParcelableThisPlease
@@ -137,14 +119,14 @@ public class ParcelableStatus implements Parcelable, Comparable<ParcelableStatus
     @JsonField(name = "my_retweet_id")
     public long my_retweet_id;
     @ParcelableThisPlease
-    @JsonField(name = "quote_id")
-    public long quote_id;
+    @JsonField(name = "quoted_id")
+    public long quoted_id;
     @ParcelableThisPlease
-    @JsonField(name = "quote_timestamp")
-    public long quote_timestamp;
+    @JsonField(name = "quoted_timestamp")
+    public long quoted_timestamp;
     @ParcelableThisPlease
-    @JsonField(name = "quoted_by_user_id")
-    public long quoted_by_user_id;
+    @JsonField(name = "quoted_user_id")
+    public long quoted_user_id;
     @ParcelableThisPlease
     @JsonField(name = "is_gap")
     public boolean is_gap;
@@ -170,11 +152,11 @@ public class ParcelableStatus implements Parcelable, Comparable<ParcelableStatus
     @JsonField(name = "is_quote")
     public boolean is_quote;
     @ParcelableThisPlease
-    @JsonField(name = "quoted_by_user_is_protected")
-    public boolean quoted_by_user_is_protected;
+    @JsonField(name = "quoted_user_is_protected")
+    public boolean quoted_user_is_protected;
     @ParcelableThisPlease
-    @JsonField(name = "quoted_by_user_is_verified")
-    public boolean quoted_by_user_is_verified;
+    @JsonField(name = "quoted_user_is_verified")
+    public boolean quoted_user_is_verified;
     @ParcelableThisPlease
     @JsonField(name = "retweeted_by_user_name")
     public String retweeted_by_user_name;
@@ -215,26 +197,26 @@ public class ParcelableStatus implements Parcelable, Comparable<ParcelableStatus
     @JsonField(name = "card_name")
     public String card_name;
     @ParcelableThisPlease
-    @JsonField(name = "quote_text_html")
-    public String quote_text_html;
+    @JsonField(name = "quoted_text_html")
+    public String quoted_text_html;
     @ParcelableThisPlease
-    @JsonField(name = "quote_text_plain")
-    public String quote_text_plain;
+    @JsonField(name = "quoted_text_plain")
+    public String quoted_text_plain;
     @ParcelableThisPlease
-    @JsonField(name = "quote_text_unescaped")
-    public String quote_text_unescaped;
+    @JsonField(name = "quoted_text_unescaped")
+    public String quoted_text_unescaped;
     @ParcelableThisPlease
-    @JsonField(name = "quote_source")
-    public String quote_source;
+    @JsonField(name = "quoted_source")
+    public String quoted_source;
     @ParcelableThisPlease
-    @JsonField(name = "quoted_by_user_name")
-    public String quoted_by_user_name;
+    @JsonField(name = "quoted_user_name")
+    public String quoted_user_name;
     @ParcelableThisPlease
-    @JsonField(name = "quoted_by_user_screen_name")
-    public String quoted_by_user_screen_name;
+    @JsonField(name = "quoted_user_screen_name")
+    public String quoted_user_screen_name;
     @ParcelableThisPlease
-    @JsonField(name = "quoted_by_user_profile_image")
-    public String quoted_by_user_profile_image;
+    @JsonField(name = "quoted_user_profile_image")
+    public String quoted_user_profile_image;
     @ParcelableThisPlease
     @JsonField(name = "location")
     public ParcelableLocation location;
@@ -248,11 +230,24 @@ public class ParcelableStatus implements Parcelable, Comparable<ParcelableStatus
     @JsonField(name = "media")
     public ParcelableMedia[] media;
     @ParcelableThisPlease
-    @JsonField(name = "quote_media")
-    public ParcelableMedia[] quote_media;
+    @JsonField(name = "quoted_media")
+    public ParcelableMedia[] quoted_media;
     @ParcelableThisPlease
     @JsonField(name = "card")
     public ParcelableCardEntity card;
+    public static final Parcelable.Creator<ParcelableStatus> CREATOR = new Parcelable.Creator<ParcelableStatus>() {
+        @Override
+        public ParcelableStatus createFromParcel(final Parcel in) {
+            ParcelableStatus status = new ParcelableStatus();
+            ParcelableStatusParcelablePlease.readFromParcel(status, in);
+            return status;
+        }
+
+        @Override
+        public ParcelableStatus[] newArray(final int size) {
+            return new ParcelableStatus[size];
+        }
+    };
 
     public ParcelableStatus(final Cursor c, final CursorIndices idx) {
         id = idx.status_id != -1 ? c.getLong(idx.status_id) : -1;
@@ -265,7 +260,6 @@ public class ParcelableStatus implements Parcelable, Comparable<ParcelableStatus
         retweet_count = idx.retweet_count != -1 ? c.getLong(idx.retweet_count) : -1;
         favorite_count = idx.favorite_count != -1 ? c.getLong(idx.favorite_count) : -1;
         reply_count = idx.reply_count != -1 ? c.getLong(idx.reply_count) : -1;
-        descendent_reply_count = idx.descendent_reply_count != -1 ? c.getLong(idx.descendent_reply_count) : -1;
         in_reply_to_status_id = idx.in_reply_to_status_id != -1 ? c.getLong(idx.in_reply_to_status_id) : -1;
         in_reply_to_user_id = idx.in_reply_to_user_id != -1 ? c.getLong(idx.in_reply_to_user_id) : -1;
         is_gap = idx.is_gap != -1 && c.getInt(idx.is_gap) == 1;
@@ -280,7 +274,7 @@ public class ParcelableStatus implements Parcelable, Comparable<ParcelableStatus
                 .getString(idx.retweeted_by_user_profile_image) : null;
         text_html = idx.text_html != -1 ? c.getString(idx.text_html) : null;
         media = idx.media != -1 ? ParcelableMedia.fromSerializedJson(c.getString(idx.media)) : null;
-        quote_media = idx.quote_media != -1 ? ParcelableMedia.fromSerializedJson(c.getString(idx.quote_media)) : null;
+        quoted_media = idx.quoted_media != -1 ? ParcelableMedia.fromSerializedJson(c.getString(idx.quoted_media)) : null;
         text_plain = idx.text_plain != -1 ? c.getString(idx.text_plain) : null;
         user_name = idx.user_name != -1 ? c.getString(idx.user_name) : null;
         user_screen_name = idx.user_screen_name != -1 ? c.getString(idx.user_screen_name) : null;
@@ -298,18 +292,18 @@ public class ParcelableStatus implements Parcelable, Comparable<ParcelableStatus
         card = idx.card != -1 ? ParcelableCardEntity.fromJSONString(c.getString(idx.card)) : null;
         place_full_name = idx.place_full_name != -1 ? c.getString(idx.place_full_name) : null;
         is_quote = idx.is_quote != -1 && c.getShort(idx.is_quote) == 1;
-        quote_id = idx.quote_id != -1 ? c.getLong(idx.quote_id) : -1;
-        quote_timestamp = idx.quote_timestamp != -1 ? c.getLong(idx.quote_timestamp) : -1;
-        quoted_by_user_id = idx.quoted_by_user_id != -1 ? c.getLong(idx.quoted_by_user_id) : -1;
-        quote_text_html = idx.quote_text_html != -1 ? c.getString(idx.quote_text_html) : null;
-        quote_text_plain = idx.quote_text_plain != -1 ? c.getString(idx.quote_text_plain) : null;
-        quote_text_unescaped = idx.quote_text_unescaped != -1 ? c.getString(idx.quote_text_unescaped) : null;
-        quoted_by_user_name = idx.quoted_by_user_name != -1 ? c.getString(idx.quoted_by_user_name) : null;
-        quoted_by_user_screen_name = idx.quoted_by_user_screen_name != -1 ? c.getString(idx.quoted_by_user_screen_name) : null;
-        quoted_by_user_profile_image = idx.quoted_by_user_profile_image != -1 ? c.getString(idx.quoted_by_user_profile_image) : null;
-        quoted_by_user_is_protected = idx.quoted_by_user_is_protected != -1 && c.getShort(idx.quoted_by_user_is_protected) == 1;
-        quoted_by_user_is_verified = idx.quoted_by_user_is_verified != -1 && c.getShort(idx.quoted_by_user_is_verified) == 1;
-        quote_source = idx.quote_source != -1 ? c.getString(idx.quote_source) : null;
+        quoted_id = idx.quoted_id != -1 ? c.getLong(idx.quoted_id) : -1;
+        quoted_timestamp = idx.quoted_timestamp != -1 ? c.getLong(idx.quoted_timestamp) : -1;
+        quoted_user_id = idx.quoted_user_id != -1 ? c.getLong(idx.quoted_user_id) : -1;
+        quoted_text_html = idx.quoted_text_html != -1 ? c.getString(idx.quoted_text_html) : null;
+        quoted_text_plain = idx.quoted_text_plain != -1 ? c.getString(idx.quoted_text_plain) : null;
+        quoted_text_unescaped = idx.quoted_text_unescaped != -1 ? c.getString(idx.quoted_text_unescaped) : null;
+        quoted_user_name = idx.quoted_user_name != -1 ? c.getString(idx.quoted_user_name) : null;
+        quoted_user_screen_name = idx.quoted_user_screen_name != -1 ? c.getString(idx.quoted_user_screen_name) : null;
+        quoted_user_profile_image = idx.quoted_user_profile_image != -1 ? c.getString(idx.quoted_user_profile_image) : null;
+        quoted_user_is_protected = idx.quoted_user_is_protected != -1 && c.getShort(idx.quoted_user_is_protected) == 1;
+        quoted_user_is_verified = idx.quoted_user_is_verified != -1 && c.getShort(idx.quoted_user_is_verified) == 1;
+        quoted_source = idx.quoted_source != -1 ? c.getString(idx.quoted_source) : null;
         card_name = card != null ? card.name : null;
     }
 
@@ -328,7 +322,6 @@ public class ParcelableStatus implements Parcelable, Comparable<ParcelableStatus
         retweet_count = override_retweet_count;
         favorite_count = orig.favorite_count;
         reply_count = orig.reply_count;
-        descendent_reply_count = orig.descendent_reply_count;
         in_reply_to_status_id = orig.in_reply_to_status_id;
         is_gap = orig.is_gap;
         is_retweet = orig.is_retweet;
@@ -346,7 +339,7 @@ public class ParcelableStatus implements Parcelable, Comparable<ParcelableStatus
         source = orig.source;
         user_profile_image_url = orig.user_profile_image_url;
         media = orig.media;
-        quote_media = orig.quote_media;
+        quoted_media = orig.quoted_media;
         location = orig.location;
         my_retweet_id = override_my_retweet_id;
         is_possibly_sensitive = orig.is_possibly_sensitive;
@@ -358,18 +351,18 @@ public class ParcelableStatus implements Parcelable, Comparable<ParcelableStatus
         card = orig.card;
         place_full_name = orig.place_full_name;
         is_quote = orig.is_quote;
-        quote_id = orig.quote_id;
-        quote_timestamp = orig.quote_timestamp;
-        quoted_by_user_id = orig.quoted_by_user_id;
-        quoted_by_user_name = orig.quoted_by_user_name;
-        quoted_by_user_screen_name = orig.quoted_by_user_screen_name;
-        quoted_by_user_profile_image = orig.quoted_by_user_profile_image;
-        quote_text_html = orig.quote_text_html;
-        quote_text_plain = orig.quote_text_plain;
-        quote_text_unescaped = orig.quote_text_unescaped;
-        quote_source = orig.quote_source;
-        quoted_by_user_is_protected = orig.quoted_by_user_is_protected;
-        quoted_by_user_is_verified = orig.quoted_by_user_is_verified;
+        quoted_id = orig.quoted_id;
+        quoted_timestamp = orig.quoted_timestamp;
+        quoted_user_id = orig.quoted_user_id;
+        quoted_user_name = orig.quoted_user_name;
+        quoted_user_screen_name = orig.quoted_user_screen_name;
+        quoted_user_profile_image = orig.quoted_user_profile_image;
+        quoted_text_html = orig.quoted_text_html;
+        quoted_text_plain = orig.quoted_text_plain;
+        quoted_text_unescaped = orig.quoted_text_unescaped;
+        quoted_source = orig.quoted_source;
+        quoted_user_is_protected = orig.quoted_user_is_protected;
+        quoted_user_is_verified = orig.quoted_user_is_verified;
         card_name = card != null ? card.name : null;
     }
 
@@ -387,49 +380,50 @@ public class ParcelableStatus implements Parcelable, Comparable<ParcelableStatus
         retweeted_by_user_id = retweet_user != null ? retweet_user.getId() : -1;
         retweeted_by_user_name = retweet_user != null ? retweet_user.getName() : null;
         retweeted_by_user_screen_name = retweet_user != null ? retweet_user.getScreenName() : null;
-        retweeted_by_user_profile_image = retweet_user != null ? retweet_user.getProfileImageUrlHttps() : null;
+        retweeted_by_user_profile_image = TwitterContentUtils.getProfileImageUrl(retweet_user);
 
         final Status quoted = orig.getQuotedStatus();
-        final User quote_user = quoted != null ? orig.getUser() : null;
         is_quote = orig.isQuote();
-        quote_id = quoted != null ? quoted.getId() : -1;
-        quote_text_html = TwitterContentUtils.formatStatusText(orig);
-        quote_text_plain = TwitterContentUtils.unescapeTwitterStatusText(orig.getText());
-        quote_text_unescaped = HtmlEscapeHelper.toPlainText(quote_text_html);
-        quote_timestamp = orig.getCreatedAt().getTime();
-        quote_source = orig.getSource();
+        if (quoted != null) {
+            final User quoted_user = quoted.getUser();
+            quoted_id = quoted.getId();
+            quoted_text_html = TwitterContentUtils.formatStatusText(quoted);
+            quoted_text_plain = TwitterContentUtils.unescapeTwitterStatusText(quoted.getText());
+            quoted_text_unescaped = HtmlEscapeHelper.toPlainText(quoted_text_html);
+            quoted_timestamp = quoted.getCreatedAt().getTime();
+            quoted_source = quoted.getSource();
+            quoted_media = ParcelableMedia.fromStatus(quoted);
 
-        quoted_by_user_id = quote_user != null ? quote_user.getId() : -1;
-        quoted_by_user_name = quote_user != null ? quote_user.getName() : null;
-        quoted_by_user_screen_name = quote_user != null ? quote_user.getScreenName() : null;
-        quoted_by_user_profile_image = quote_user != null ? quote_user.getProfileImageUrlHttps() : null;
-        quoted_by_user_is_protected = quote_user != null && quote_user.isProtected();
-        quoted_by_user_is_verified = quote_user != null && quote_user.isVerified();
+            quoted_user_id = quoted_user.getId();
+            quoted_user_name = quoted_user.getName();
+            quoted_user_screen_name = quoted_user.getScreenName();
+            quoted_user_profile_image = TwitterContentUtils.getProfileImageUrl(quoted_user);
+            quoted_user_is_protected = quoted_user.isProtected();
+            quoted_user_is_verified = quoted_user.isVerified();
+        }
 
         final Status status;
-        if (quoted != null) {
-            status = quoted;
-        } else if (retweeted != null) {
+        if (retweeted != null) {
             status = retweeted;
         } else {
             status = orig;
         }
+
+        retweet_count = (retweeted != null ? retweeted : orig).getRetweetCount();
+        favorite_count = (retweeted != null ? retweeted : orig).getFavoriteCount();
+        reply_count = (retweeted != null ? retweeted : orig).getReplyCount();
+
         final User user = status.getUser();
         user_id = user.getId();
         user_name = user.getName();
         user_screen_name = user.getScreenName();
-        user_profile_image_url = user.getProfileImageUrlHttps();
+        user_profile_image_url = TwitterContentUtils.getProfileImageUrl(user);
         user_is_protected = user.isProtected();
         user_is_verified = user.isVerified();
         user_is_following = user.isFollowing();
         text_html = TwitterContentUtils.formatStatusText(status);
         media = ParcelableMedia.fromStatus(status);
-        quote_media = quoted != null ? ParcelableMedia.fromStatus(orig) : null;
         text_plain = TwitterContentUtils.unescapeTwitterStatusText(status.getText());
-        retweet_count = status.getRetweetCount();
-        favorite_count = status.getFavoriteCount();
-        reply_count = status.getReplyCount();
-        descendent_reply_count = status.getDescendentReplyCount();
         in_reply_to_name = TwitterContentUtils.getInReplyToName(retweeted != null ? retweeted : orig);
         in_reply_to_screen_name = (retweeted != null ? retweeted : orig).getInReplyToScreenName();
         in_reply_to_status_id = (retweeted != null ? retweeted : orig).getInReplyToStatusId();
@@ -444,6 +438,26 @@ public class ParcelableStatus implements Parcelable, Comparable<ParcelableStatus
         card = ParcelableCardEntity.fromCardEntity(status.getCard(), account_id);
         place_full_name = getPlaceFullName(status.getPlace());
         card_name = card != null ? card.name : null;
+    }
+
+    @Nullable
+    private static String getPlaceFullName(@Nullable Place place) {
+        if (place == null) return null;
+        return place.getFullName();
+    }
+
+    private static long getTime(final Date date) {
+        return date != null ? date.getTime() : 0;
+    }
+
+    public static ParcelableStatus[] fromStatuses(Status[] statuses, long accountId) {
+        if (statuses == null) return null;
+        int size = statuses.length;
+        final ParcelableStatus[] result = new ParcelableStatus[size];
+        for (int i = 0; i < size; i++) {
+            result[i] = new ParcelableStatus(statuses[i], accountId, false);
+        }
+        return result;
     }
 
     @Override
@@ -490,13 +504,12 @@ public class ParcelableStatus implements Parcelable, Comparable<ParcelableStatus
                 ", retweet_count=" + retweet_count +
                 ", favorite_count=" + favorite_count +
                 ", reply_count=" + reply_count +
-                ", descendent_reply_count=" + descendent_reply_count +
                 ", in_reply_to_status_id=" + in_reply_to_status_id +
                 ", in_reply_to_user_id=" + in_reply_to_user_id +
                 ", my_retweet_id=" + my_retweet_id +
-                ", quote_id=" + quote_id +
-                ", quote_timestamp=" + quote_timestamp +
-                ", quoted_by_user_id=" + quoted_by_user_id +
+                ", quoted_id=" + quoted_id +
+                ", quoted_timestamp=" + quoted_timestamp +
+                ", quoted_user_id=" + quoted_user_id +
                 ", is_gap=" + is_gap +
                 ", is_retweet=" + is_retweet +
                 ", is_favorite=" + is_favorite +
@@ -505,8 +518,8 @@ public class ParcelableStatus implements Parcelable, Comparable<ParcelableStatus
                 ", user_is_protected=" + user_is_protected +
                 ", user_is_verified=" + user_is_verified +
                 ", is_quote=" + is_quote +
-                ", quoted_by_user_is_protected=" + quoted_by_user_is_protected +
-                ", quoted_by_user_is_verified=" + quoted_by_user_is_verified +
+                ", quoted_user_is_protected=" + quoted_user_is_protected +
+                ", quoted_user_is_verified=" + quoted_user_is_verified +
                 ", retweeted_by_user_name='" + retweeted_by_user_name + '\'' +
                 ", retweeted_by_user_screen_name='" + retweeted_by_user_screen_name + '\'' +
                 ", retweeted_by_user_profile_image='" + retweeted_by_user_profile_image + '\'' +
@@ -520,32 +533,34 @@ public class ParcelableStatus implements Parcelable, Comparable<ParcelableStatus
                 ", user_profile_image_url='" + user_profile_image_url + '\'' +
                 ", text_unescaped='" + text_unescaped + '\'' +
                 ", card_name='" + card_name + '\'' +
-                ", quote_text_html='" + quote_text_html + '\'' +
-                ", quote_text_plain='" + quote_text_plain + '\'' +
-                ", quote_text_unescaped='" + quote_text_unescaped + '\'' +
-                ", quote_source='" + quote_source + '\'' +
-                ", quoted_by_user_name='" + quoted_by_user_name + '\'' +
-                ", quoted_by_user_screen_name='" + quoted_by_user_screen_name + '\'' +
-                ", quoted_by_user_profile_image='" + quoted_by_user_profile_image + '\'' +
+                ", quoted_text_html='" + quoted_text_html + '\'' +
+                ", quoted_text_plain='" + quoted_text_plain + '\'' +
+                ", quoted_text_unescaped='" + quoted_text_unescaped + '\'' +
+                ", quoted_source='" + quoted_source + '\'' +
+                ", quoted_user_name='" + quoted_user_name + '\'' +
+                ", quoted_user_screen_name='" + quoted_user_screen_name + '\'' +
+                ", quoted_user_profile_image='" + quoted_user_profile_image + '\'' +
                 ", location=" + location +
                 ", place_full_name='" + place_full_name + '\'' +
                 ", mentions=" + Arrays.toString(mentions) +
                 ", media=" + Arrays.toString(media) +
+                ", quoted_media=" + Arrays.toString(quoted_media) +
                 ", card=" + card +
                 '}';
     }
 
-    @Nullable
-    private static String getPlaceFullName(@Nullable Place place) {
-        if (place == null) return null;
-        return place.getFullName();
+    @Override
+    public void writeToParcel(final Parcel out, final int flags) {
+        ParcelableStatusParcelablePlease.writeToParcel(this, out, flags);
     }
 
-    private static long getTime(final Date date) {
-        return date != null ? date.getTime() : 0;
+    @OnJsonParseComplete
+    void onParseComplete() throws IOException {
+        if (is_quote && TextUtils.isEmpty(quoted_text_html))
+            throw new IOException("Incompatible model");
     }
 
-    public static final class CursorIndices {
+    public static final class CursorIndices extends ObjectCursor.CursorIndices<ParcelableStatus> {
 
         public final int _id, account_id, status_id, status_timestamp, user_name, user_screen_name,
                 text_html, text_plain, text_unescaped, user_profile_image_url, is_favorite, is_retweet,
@@ -553,13 +568,13 @@ public class ParcelableStatus implements Parcelable, Comparable<ParcelableStatus
                 in_reply_to_user_name, in_reply_to_user_screen_name, my_retweet_id, retweeted_by_user_name,
                 retweeted_by_user_screen_name, retweeted_by_user_profile_image, retweet_id, retweet_timestamp,
                 retweeted_by_user_id, user_id, source, retweet_count, favorite_count, reply_count,
-                descendent_reply_count, is_possibly_sensitive, is_following, media, mentions, quote_media,
-                card_name, card, place_full_name, is_quote, quote_id, quote_text_html, quote_text_plain,
-                quote_text_unescaped, quote_timestamp, quote_source, quoted_by_user_id, quoted_by_user_name,
-                quoted_by_user_screen_name, quoted_by_user_profile_image, quoted_by_user_is_protected,
-                quoted_by_user_is_verified;
+                is_possibly_sensitive, is_following, media, mentions, quoted_media, card_name, card,
+                place_full_name, is_quote, quoted_id, quoted_text_html, quoted_text_plain, quoted_text_unescaped,
+                quoted_timestamp, quoted_source, quoted_user_id, quoted_user_name, quoted_user_screen_name,
+                quoted_user_profile_image, quoted_user_is_protected, quoted_user_is_verified;
 
         public CursorIndices(final Cursor cursor) {
+            super(cursor);
             _id = cursor.getColumnIndex(Statuses._ID);
             account_id = cursor.getColumnIndex(Statuses.ACCOUNT_ID);
             status_id = cursor.getColumnIndex(Statuses.STATUS_ID);
@@ -588,32 +603,36 @@ public class ParcelableStatus implements Parcelable, Comparable<ParcelableStatus
             retweeted_by_user_name = cursor.getColumnIndex(Statuses.RETWEETED_BY_USER_NAME);
             retweeted_by_user_screen_name = cursor.getColumnIndex(Statuses.RETWEETED_BY_USER_SCREEN_NAME);
             retweeted_by_user_profile_image = cursor.getColumnIndex(Statuses.RETWEETED_BY_USER_PROFILE_IMAGE);
-            quote_id = cursor.getColumnIndex(Statuses.QUOTE_ID);
-            quote_text_html = cursor.getColumnIndex(Statuses.QUOTE_TEXT_HTML);
-            quote_text_plain = cursor.getColumnIndex(Statuses.QUOTE_TEXT_PLAIN);
-            quote_text_unescaped = cursor.getColumnIndex(Statuses.QUOTE_TEXT_UNESCAPED);
-            quote_timestamp = cursor.getColumnIndex(Statuses.QUOTE_TIMESTAMP);
-            quote_source = cursor.getColumnIndex(Statuses.QUOTE_SOURCE);
-            quoted_by_user_id = cursor.getColumnIndex(Statuses.QUOTED_BY_USER_ID);
-            quoted_by_user_name = cursor.getColumnIndex(Statuses.QUOTED_BY_USER_NAME);
-            quoted_by_user_screen_name = cursor.getColumnIndex(Statuses.QUOTED_BY_USER_SCREEN_NAME);
-            quoted_by_user_profile_image = cursor.getColumnIndex(Statuses.QUOTED_BY_USER_PROFILE_IMAGE);
-            quoted_by_user_is_protected = cursor.getColumnIndex(Statuses.QUOTED_BY_USER_IS_PROTECTED);
-            quoted_by_user_is_verified = cursor.getColumnIndex(Statuses.QUOTED_BY_USER_IS_VERIFIED);
+            quoted_id = cursor.getColumnIndex(Statuses.QUOTED_ID);
+            quoted_text_html = cursor.getColumnIndex(Statuses.QUOTED_TEXT_HTML);
+            quoted_text_plain = cursor.getColumnIndex(Statuses.QUOTED_TEXT_PLAIN);
+            quoted_text_unescaped = cursor.getColumnIndex(Statuses.QUOTED_TEXT_UNESCAPED);
+            quoted_timestamp = cursor.getColumnIndex(Statuses.QUOTED_TIMESTAMP);
+            quoted_source = cursor.getColumnIndex(Statuses.QUOTED_SOURCE);
+            quoted_user_id = cursor.getColumnIndex(Statuses.QUOTED_USER_ID);
+            quoted_user_name = cursor.getColumnIndex(Statuses.QUOTED_USER_NAME);
+            quoted_user_screen_name = cursor.getColumnIndex(Statuses.QUOTED_USER_SCREEN_NAME);
+            quoted_user_profile_image = cursor.getColumnIndex(Statuses.QUOTED_USER_PROFILE_IMAGE);
+            quoted_user_is_protected = cursor.getColumnIndex(Statuses.QUOTED_USER_IS_PROTECTED);
+            quoted_user_is_verified = cursor.getColumnIndex(Statuses.QUOTED_USER_IS_VERIFIED);
             user_id = cursor.getColumnIndex(Statuses.USER_ID);
             source = cursor.getColumnIndex(Statuses.SOURCE);
             retweet_count = cursor.getColumnIndex(Statuses.RETWEET_COUNT);
             favorite_count = cursor.getColumnIndex(Statuses.FAVORITE_COUNT);
             reply_count = cursor.getColumnIndex(Statuses.REPLY_COUNT);
-            descendent_reply_count = cursor.getColumnIndex(Statuses.DESCENDENT_REPLY_COUNT);
             is_possibly_sensitive = cursor.getColumnIndex(Statuses.IS_POSSIBLY_SENSITIVE);
             is_following = cursor.getColumnIndex(Statuses.IS_FOLLOWING);
             media = cursor.getColumnIndex(Statuses.MEDIA_JSON);
             mentions = cursor.getColumnIndex(Statuses.MENTIONS_JSON);
-            quote_media = cursor.getColumnIndex(Statuses.QUOTE_MEDIA_JSON);
+            quoted_media = cursor.getColumnIndex(Statuses.QUOTED_MEDIA_JSON);
             card = cursor.getColumnIndex(Statuses.CARD);
             card_name = cursor.getColumnIndex(Statuses.CARD_NAME);
             place_full_name = cursor.getColumnIndex(Statuses.PLACE_FULL_NAME);
+        }
+
+        @Override
+        public ParcelableStatus newObject(Cursor cursor) {
+            return new ParcelableStatus(cursor, this);
         }
 
         @Override
@@ -651,32 +670,29 @@ public class ParcelableStatus implements Parcelable, Comparable<ParcelableStatus
                     ", retweet_count=" + retweet_count +
                     ", favorite_count=" + favorite_count +
                     ", reply_count=" + reply_count +
-                    ", descendent_reply_count=" + descendent_reply_count +
                     ", is_possibly_sensitive=" + is_possibly_sensitive +
                     ", is_following=" + is_following +
                     ", media=" + media +
                     ", mentions=" + mentions +
-                    ", quote_media=" + quote_media +
+                    ", quoted_media=" + quoted_media +
                     ", card_name=" + card_name +
                     ", card=" + card +
                     ", place_full_name=" + place_full_name +
                     ", is_quote=" + is_quote +
-                    ", quote_id=" + quote_id +
-                    ", quote_text_html=" + quote_text_html +
-                    ", quote_text_plain=" + quote_text_plain +
-                    ", quote_text_unescaped=" + quote_text_unescaped +
-                    ", quote_timestamp=" + quote_timestamp +
-                    ", quote_source=" + quote_source +
-                    ", quoted_by_user_id=" + quoted_by_user_id +
-                    ", quoted_by_user_name=" + quoted_by_user_name +
-                    ", quoted_by_user_screen_name=" + quoted_by_user_screen_name +
-                    ", quoted_by_user_profile_image=" + quoted_by_user_profile_image +
-                    ", quoted_by_user_is_protected=" + quoted_by_user_is_protected +
-                    ", quoted_by_user_is_verified=" + quoted_by_user_is_verified +
-                    '}';
+                    ", quoted_id=" + quoted_id +
+                    ", quoted_text_html=" + quoted_text_html +
+                    ", quoted_text_plain=" + quoted_text_plain +
+                    ", quoted_text_unescaped=" + quoted_text_unescaped +
+                    ", quoted_timestamp=" + quoted_timestamp +
+                    ", quoted_source=" + quoted_source +
+                    ", quoted_user_id=" + quoted_user_id +
+                    ", quoted_user_name=" + quoted_user_name +
+                    ", quoted_user_screen_name=" + quoted_user_screen_name +
+                    ", quoted_user_profile_image=" + quoted_user_profile_image +
+                    ", quoted_user_is_protected=" + quoted_user_is_protected +
+                    ", quoted_user_is_verified=" + quoted_user_is_verified +
+                    "} " + super.toString();
         }
-
-
     }
 
     @JsonObject
@@ -726,6 +742,25 @@ public class ParcelableStatus implements Parcelable, Comparable<ParcelableStatus
             values = ParcelableBindingValue.from(card.getBindingValues());
         }
 
+        public static ParcelableCardEntity fromCardEntity(CardEntity card, long account_id) {
+            if (card == null) return null;
+            return new ParcelableCardEntity(card, account_id);
+        }
+
+        public static ParcelableCardEntity fromJSONString(final String json) {
+            if (TextUtils.isEmpty(json)) return null;
+            try {
+                return LoganSquare.parse(json, ParcelableCardEntity.class);
+            } catch (final IOException e) {
+                return null;
+            }
+        }
+
+        public static ParcelableBindingValue getValue(@Nullable ParcelableCardEntity entity, @Nullable String key) {
+            if (entity == null || entity.values == null || key == null) return null;
+            return entity.values.get(key);
+        }
+
         @Override
         public String toString() {
             return "ParcelableCardEntity{" +
@@ -751,25 +786,6 @@ public class ParcelableStatus implements Parcelable, Comparable<ParcelableStatus
                 }
             }
             dest.writeBundle(bundle);
-        }
-
-        public static ParcelableCardEntity fromCardEntity(CardEntity card, long account_id) {
-            if (card == null) return null;
-            return new ParcelableCardEntity(card, account_id);
-        }
-
-        public static ParcelableCardEntity fromJSONString(final String json) {
-            if (TextUtils.isEmpty(json)) return null;
-            try {
-                return LoganSquare.parse(json, ParcelableCardEntity.class);
-            } catch (final IOException e) {
-                return null;
-            }
-        }
-
-        public static ParcelableBindingValue getValue(@Nullable ParcelableCardEntity entity, @Nullable String key) {
-            if (entity == null || entity.values == null || key == null) return null;
-            return entity.values.get(key);
         }
 
         @JsonObject
@@ -816,11 +832,6 @@ public class ParcelableStatus implements Parcelable, Comparable<ParcelableStatus
                 }
             }
 
-            @Override
-            public int describeContents() {
-                return 0;
-            }
-
             public static Map<String, ParcelableBindingValue> from(Map<String, BindingValue> bindingValues) {
                 if (bindingValues == null) return null;
                 final Map<String, ParcelableBindingValue> map = new HashMap<>();
@@ -828,6 +839,11 @@ public class ParcelableStatus implements Parcelable, Comparable<ParcelableStatus
                     map.put(entry.getKey(), new ParcelableBindingValue(entry.getValue()));
                 }
                 return map;
+            }
+
+            @Override
+            public int describeContents() {
+                return 0;
             }
 
             @Override
@@ -839,11 +855,6 @@ public class ParcelableStatus implements Parcelable, Comparable<ParcelableStatus
 
         }
 
-    }
-
-    @Override
-    public void writeToParcel(final Parcel out, final int flags) {
-        ParcelableStatusParcelablePlease.writeToParcel(this, out, flags);
     }
 
 }

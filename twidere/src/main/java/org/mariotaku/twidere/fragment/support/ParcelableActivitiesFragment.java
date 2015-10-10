@@ -23,11 +23,8 @@ import android.content.Context;
 import android.os.Bundle;
 import android.support.annotation.NonNull;
 
-import com.squareup.otto.Bus;
-
 import org.mariotaku.twidere.adapter.ParcelableActivitiesAdapter;
 import org.mariotaku.twidere.adapter.iface.IActivitiesAdapter;
-import org.mariotaku.twidere.app.TwidereApplication;
 import org.mariotaku.twidere.model.ParcelableActivity;
 
 import java.util.List;
@@ -50,14 +47,12 @@ public abstract class ParcelableActivitiesFragment extends AbsActivitiesFragment
     @Override
     public void onStart() {
         super.onStart();
-        final Bus bus = TwidereApplication.getInstance(getActivity()).getMessageBus();
-        bus.register(this);
+        mBus.register(this);
     }
 
     @Override
     public void onStop() {
-        final Bus bus = TwidereApplication.getInstance(getActivity()).getMessageBus();
-        bus.unregister(this);
+        mBus.unregister(this);
         super.onStop();
     }
 
@@ -95,8 +90,10 @@ public abstract class ParcelableActivitiesFragment extends AbsActivitiesFragment
     @NonNull
     @Override
     protected ParcelableActivitiesAdapter onCreateAdapter(final Context context, final boolean compact) {
-        return new ParcelableActivitiesAdapter(context, compact);
+        return new ParcelableActivitiesAdapter(context, compact, isByFriends());
     }
+
+    protected abstract boolean isByFriends();
 
     protected long getAccountId() {
         final Bundle args = getArguments();

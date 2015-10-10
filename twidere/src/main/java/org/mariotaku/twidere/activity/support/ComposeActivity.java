@@ -19,12 +19,10 @@
 
 package org.mariotaku.twidere.activity.support;
 
-import android.annotation.TargetApi;
+import android.Manifest;
 import android.app.Activity;
 import android.app.AlertDialog;
 import android.app.Dialog;
-import android.app.NotificationManager;
-import android.app.PendingIntent;
 import android.content.ActivityNotFoundException;
 import android.content.ContentResolver;
 import android.content.ContentValues;
@@ -32,6 +30,7 @@ import android.content.Context;
 import android.content.DialogInterface;
 import android.content.Intent;
 import android.content.SharedPreferences;
+import android.content.pm.PackageManager;
 import android.content.res.Resources;
 import android.graphics.Bitmap;
 import android.graphics.PorterDuff.Mode;
@@ -42,13 +41,15 @@ import android.location.LocationListener;
 import android.location.LocationManager;
 import android.net.Uri;
 import android.os.AsyncTask;
-import android.os.Build;
 import android.os.Bundle;
 import android.os.Parcelable;
+import android.provider.BaseColumns;
 import android.support.annotation.NonNull;
+import android.support.v4.app.ActivityCompat;
 import android.support.v4.app.DialogFragment;
-import android.support.v4.app.NotificationCompat;
-import android.support.v4.app.NotificationCompat.Action;
+import android.support.v4.app.Fragment;
+import android.support.v4.app.FragmentManager;
+import android.support.v4.content.ContextCompat;
 import android.support.v4.util.LongSparseArray;
 import android.support.v7.internal.view.SupportMenuInflater;
 import android.support.v7.widget.ActionMenuView;
@@ -56,7 +57,6 @@ import android.support.v7.widget.ActionMenuView.OnMenuItemClickListener;
 import android.support.v7.widget.FixedLinearLayoutManager;
 import android.support.v7.widget.LinearLayoutManager;
 import android.support.v7.widget.RecyclerView;
-import android.support.v7.widget.RecyclerView.Adapter;
 import android.support.v7.widget.RecyclerView.ItemDecoration;
 import android.support.v7.widget.RecyclerView.State;
 import android.support.v7.widget.RecyclerView.ViewHolder;
@@ -65,7 +65,10 @@ import android.text.Spannable;
 import android.text.Spanned;
 import android.text.TextUtils;
 import android.text.TextWatcher;
+import android.text.style.CharacterStyle;
 import android.text.style.ImageSpan;
+import android.text.style.MetricAffectingSpan;
+import android.text.style.URLSpan;
 import android.util.Log;
 import android.view.ActionMode;
 import android.view.ActionMode.Callback;
@@ -93,13 +96,14 @@ import com.twitter.Extractor;
 
 import org.mariotaku.dynamicgridview.DraggableArrayAdapter;
 import org.mariotaku.twidere.R;
-import org.mariotaku.twidere.app.TwidereApplication;
-import org.mariotaku.twidere.constant.SharedPreferenceConstants;
+import org.mariotaku.twidere.adapter.BaseRecyclerViewAdapter;
 import org.mariotaku.twidere.fragment.support.BaseSupportDialogFragment;
-import org.mariotaku.twidere.fragment.support.DraftsFragment;
+import org.mariotaku.twidere.fragment.support.SupportProgressDialogFragment;
 import org.mariotaku.twidere.fragment.support.ViewStatusDialogFragment;
+import org.mariotaku.twidere.model.ConsumerKeyType;
 import org.mariotaku.twidere.model.DraftItem;
 import org.mariotaku.twidere.model.ParcelableAccount;
+import org.mariotaku.twidere.model.ParcelableCredentials;
 import org.mariotaku.twidere.model.ParcelableLocation;
 import org.mariotaku.twidere.model.ParcelableMedia;
 import org.mariotaku.twidere.model.ParcelableMediaUpdate;
@@ -108,10 +112,8 @@ import org.mariotaku.twidere.model.ParcelableStatusUpdate;
 import org.mariotaku.twidere.model.ParcelableUser;
 import org.mariotaku.twidere.preference.ServicePickerPreference;
 import org.mariotaku.twidere.provider.TwidereDataStore.Drafts;
-import org.mariotaku.twidere.service.BackgroundOperationService;
 import org.mariotaku.twidere.text.MarkForDeleteSpan;
 import org.mariotaku.twidere.util.AsyncTaskUtils;
-import org.mariotaku.twidere.util.AsyncTwitterWrapper;
 import org.mariotaku.twidere.util.ContentValuesCreator;
 import org.mariotaku.twidere.util.EditTextEnterHandler;
 import org.mariotaku.twidere.util.EditTextEnterHandler.EnterListener;
@@ -120,11 +122,11 @@ import org.mariotaku.twidere.util.MathUtils;
 import org.mariotaku.twidere.util.MediaLoaderWrapper;
 import org.mariotaku.twidere.util.MenuUtils;
 import org.mariotaku.twidere.util.ParseUtils;
-import org.mariotaku.twidere.util.SharedPreferencesWrapper;
+import org.mariotaku.twidere.util.PermissionUtils;
 import org.mariotaku.twidere.util.ThemeUtils;
 import org.mariotaku.twidere.util.TwidereArrayUtils;
 import org.mariotaku.twidere.util.TwidereValidator;
-import org.mariotaku.twidere.util.UserColorNameManager;
+import org.mariotaku.twidere.util.TwitterContentUtils;
 import org.mariotaku.twidere.util.Utils;
 import org.mariotaku.twidere.view.ActionIconView;
 import org.mariotaku.twidere.view.BadgeView;
@@ -153,13 +155,12 @@ public class ComposeActivity extends ThemedFragmentActivity implements LocationL
     private static final String EXTRA_SHOULD_SAVE_ACCOUNTS = "should_save_accounts";
     private static final String EXTRA_ORIGINAL_TEXT = "original_text";
     private static final String EXTRA_SHARE_SCREENSHOT = "share_screenshot";
+    private static final String DISCARD_STATUS_DIALOG_FRAGMENT_TAG = "discard_status";
 
     // Utility classes
     private final Extractor mExtractor = new Extractor();
     private TwidereValidator mValidator;
-    private AsyncTwitterWrapper mTwitterWrapper;
     private LocationManager mLocationManager;
-    private SharedPreferencesWrapper mPreferences;
     private ContentResolver mResolver;
     private AsyncTask<Object, Object, ?> mTask;
     private SupportMenuInflater mMenuInflater;
@@ -176,7 +177,6 @@ public class ComposeActivity extends ThemedFragmentActivity implements LocationL
     private ShapedImageView mProfileImageView;
     private BadgeView mCountView;
     private View mAccountSelectorButton;
-    private MediaLoaderWrapper mImageLoader;
     private View mLocationContainer;
     private ActionIconView mLocationIcon;
     private TextView mLocationText;
@@ -195,6 +195,9 @@ public class ComposeActivity extends ThemedFragmentActivity implements LocationL
     private boolean mImageUploaderUsed, mStatusShortenerUsed;
     private boolean mNavigateBackPressed;
     private boolean mTextChanged;
+    private SetProgressVisibleRunnable mSetProgressVisibleRunnable;
+    private boolean mFragmentResumed;
+    private int mKeyMetaState;
 
     @Override
     public int getThemeColor() {
@@ -295,7 +298,10 @@ public class ComposeActivity extends ThemedFragmentActivity implements LocationL
     @Override
     protected void onStop() {
         saveAccountSelection();
-        mLocationManager.removeUpdates(this);
+        try {
+            mLocationManager.removeUpdates(this);
+        } catch (SecurityException ignore) {
+        }
         super.onStop();
     }
 
@@ -303,12 +309,7 @@ public class ComposeActivity extends ThemedFragmentActivity implements LocationL
     public void onClick(final View view) {
         switch (view.getId()) {
             case R.id.send: {
-                if (isQuotingProtectedStatus()) {
-                    new RetweetProtectedStatusWarnFragment().show(getSupportFragmentManager(),
-                            "retweet_protected_status_warning_message");
-                } else {
-                    updateStatus();
-                }
+                confirmAndUpdateStatus();
                 break;
             }
             case R.id.account_selector_container: {
@@ -324,6 +325,15 @@ public class ComposeActivity extends ThemedFragmentActivity implements LocationL
                 toggleLocation();
                 break;
             }
+        }
+    }
+
+    private void confirmAndUpdateStatus() {
+        if (isQuotingProtectedStatus()) {
+            new RetweetProtectedStatusWarnFragment().show(getSupportFragmentManager(),
+                    "retweet_protected_status_warning_message");
+        } else {
+            updateStatus();
         }
     }
 
@@ -399,36 +409,36 @@ public class ComposeActivity extends ThemedFragmentActivity implements LocationL
     @Override
     public boolean onMenuItemClick(final MenuItem item) {
         switch (item.getItemId()) {
-            case MENU_TAKE_PHOTO:
+            case R.id.take_photo:
             case R.id.take_photo_sub_item: {
                 takePhoto();
                 break;
             }
-            case MENU_ADD_IMAGE:
+            case R.id.add_image:
             case R.id.add_image_sub_item: {
                 pickImage();
                 break;
             }
-            case MENU_ADD_LOCATION: {
+            case R.id.add_location: {
                 toggleLocation();
                 break;
             }
-            case MENU_DRAFTS: {
+            case R.id.drafts: {
                 Utils.openDrafts(this);
                 break;
             }
-            case MENU_DELETE: {
+            case R.id.delete: {
                 AsyncTaskUtils.executeTask(new DeleteImageTask(this));
                 break;
             }
-            case MENU_TOGGLE_SENSITIVE: {
+            case R.id.toggle_sensitive: {
                 if (!hasMedia()) return false;
                 mIsPossiblySensitive = !mIsPossiblySensitive;
                 setMenu();
                 updateTextCount();
                 break;
             }
-            case MENU_VIEW: {
+            case R.id.view: {
                 if (mInReplyToStatus == null) return false;
                 final DialogFragment fragment = new ViewStatusDialogFragment();
                 final Bundle args = new Bundle();
@@ -574,14 +584,8 @@ public class ComposeActivity extends ThemedFragmentActivity implements LocationL
     protected void onCreate(final Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         mLocationManager = (LocationManager) getSystemService(Context.LOCATION_SERVICE);
-        mPreferences = SharedPreferencesWrapper.getInstance(this, SHARED_PREFERENCES_NAME,
-                Context.MODE_PRIVATE, SharedPreferenceConstants.class);
-
-        final TwidereApplication app = TwidereApplication.getInstance(this);
-        mTwitterWrapper = app.getTwitterWrapper();
         mResolver = getContentResolver();
         mValidator = new TwidereValidator(this);
-        mImageLoader = app.getMediaLoaderWrapper();
         setContentView(R.layout.activity_compose);
         setFinishOnTouchOutside(false);
         final long[] defaultAccountIds = Utils.getAccountIds(this);
@@ -621,19 +625,16 @@ public class ComposeActivity extends ThemedFragmentActivity implements LocationL
 
             @Override
             public boolean animateMove(ViewHolder holder, int fromX, int fromY, int toX, int toY) {
-                Log.d(LOGTAG, String.format("animateMove"));
                 return false;
             }
 
             @Override
             public boolean animateChange(ViewHolder oldHolder, ViewHolder newHolder, int fromLeft, int fromTop, int toLeft, int toTop) {
-                Log.d(LOGTAG, String.format("animateChange"));
                 return false;
             }
 
             @Override
             public void endAnimation(ViewHolder item) {
-                Log.d(LOGTAG, String.format("endAnimation"));
             }
 
             @Override
@@ -648,7 +649,7 @@ public class ComposeActivity extends ThemedFragmentActivity implements LocationL
         });
         mAccountsAdapter = new AccountIconsAdapter(this);
         mAccountSelector.setAdapter(mAccountsAdapter);
-        mAccountsAdapter.setAccounts(ParcelableAccount.getAccounts(this, false, false));
+        mAccountsAdapter.setAccounts(ParcelableCredentials.getCredentialsArray(this, false, false));
 
         mMediaPreviewAdapter = new MediaPreviewAdapter(this);
         mMediaPreviewGrid.setAdapter(mMediaPreviewAdapter);
@@ -714,12 +715,32 @@ public class ComposeActivity extends ThemedFragmentActivity implements LocationL
         mTextChanged = false;
     }
 
+    @Override
+    public boolean dispatchKeyEvent(KeyEvent event) {
+        final int keyCode = event.getKeyCode();
+        if (KeyEvent.isModifierKey(keyCode)) {
+            final int action = event.getAction();
+            if (action == MotionEvent.ACTION_DOWN) {
+                mKeyMetaState |= KeyboardShortcutsHandler.getMetaStateForKeyCode(keyCode);
+            } else if (action == MotionEvent.ACTION_UP || action == MotionEvent.ACTION_CANCEL) {
+                mKeyMetaState &= ~KeyboardShortcutsHandler.getMetaStateForKeyCode(keyCode);
+            }
+        }
+        return super.dispatchKeyEvent(event);
+    }
+
     private void setupEditText() {
         final boolean sendByEnter = mPreferences.getBoolean(KEY_QUICK_SEND);
         EditTextEnterHandler.attach(mEditText, new EnterListener() {
             @Override
-            public void onHitEnter() {
-                updateStatus();
+            public boolean shouldCallListener() {
+                return mKeyMetaState == 0;
+            }
+
+            @Override
+            public boolean onHitEnter() {
+                confirmAndUpdateStatus();
+                return true;
             }
         }, sendByEnter);
         mEditText.addTextChangedListener(new TextWatcher() {
@@ -736,9 +757,8 @@ public class ComposeActivity extends ThemedFragmentActivity implements LocationL
                 if (s instanceof Spannable && count == 1 && before == 0) {
                     final ImageSpan[] imageSpans = ((Spannable) s).getSpans(start, start + count, ImageSpan.class);
                     if (imageSpans.length == 1) {
-                        final Intent intent = new Intent(ComposeActivity.this, ImagePickerActivity.class);
-                        intent.setAction(ImagePickerActivity.INTENT_ACTION_GET_IMAGE);
-                        intent.setData(Uri.parse(imageSpans[0].getSource()));
+                        final Intent intent = ThemedImagePickerActivity.withThemed(ComposeActivity.this)
+                                .getImage(Uri.parse(imageSpans[0].getSource())).build();
                         startActivityForResult(intent, REQUEST_PICK_IMAGE);
                         ((Spannable) s).setSpan(new MarkForDeleteSpan(), start, start + count,
                                 Spanned.SPAN_INCLUSIVE_INCLUSIVE);
@@ -752,6 +772,14 @@ public class ComposeActivity extends ThemedFragmentActivity implements LocationL
                 final MarkForDeleteSpan[] deletes = s.getSpans(0, s.length(), MarkForDeleteSpan.class);
                 for (MarkForDeleteSpan delete : deletes) {
                     s.delete(s.getSpanStart(delete), s.getSpanEnd(delete));
+                    s.removeSpan(delete);
+                }
+                for (Object span : s.getSpans(0, s.length(), CharacterStyle.class)) {
+                    if (span instanceof URLSpan) {
+                        s.removeSpan(span);
+                    } else if (span instanceof MetricAffectingSpan) {
+                        s.removeSpan(span);
+                    }
                 }
             }
         });
@@ -764,8 +792,8 @@ public class ComposeActivity extends ThemedFragmentActivity implements LocationL
     }
 
     @Override
-    public boolean handleKeyboardShortcutSingle(@NonNull KeyboardShortcutsHandler handler, int keyCode, @NonNull KeyEvent event) {
-        final String action = handler.getKeyAction(CONTEXT_TAG_NAVIGATION, keyCode, event);
+    public boolean handleKeyboardShortcutSingle(@NonNull KeyboardShortcutsHandler handler, int keyCode, @NonNull KeyEvent event, int metaState) {
+        final String action = handler.getKeyAction(CONTEXT_TAG_NAVIGATION, keyCode, event, metaState);
         if (ACTION_NAVIGATION_BACK.equals(action)) {
             if (mEditText.length() == 0 && !mTextChanged) {
                 if (!mNavigateBackPressed) {
@@ -786,12 +814,12 @@ public class ComposeActivity extends ThemedFragmentActivity implements LocationL
             }
             return true;
         }
-        return super.handleKeyboardShortcutSingle(handler, keyCode, event);
+        return super.handleKeyboardShortcutSingle(handler, keyCode, event, metaState);
     }
 
     @Override
-    public boolean handleKeyboardShortcutRepeat(@NonNull KeyboardShortcutsHandler handler, int keyCode, int repeatCount, @NonNull KeyEvent event) {
-        return super.handleKeyboardShortcutRepeat(handler, keyCode, repeatCount, event);
+    public boolean handleKeyboardShortcutRepeat(@NonNull KeyboardShortcutsHandler handler, int keyCode, int repeatCount, @NonNull KeyEvent event, int metaState) {
+        return super.handleKeyboardShortcutRepeat(handler, keyCode, repeatCount, event, metaState);
     }
 
     private void addMedia(final ParcelableMediaUpdate media) {
@@ -815,26 +843,9 @@ public class ComposeActivity extends ThemedFragmentActivity implements LocationL
     }
 
     private void displayNewDraftNotification(String text, Uri draftUri) {
-        final NotificationManager nm = (NotificationManager) getSystemService(NOTIFICATION_SERVICE);
-        final NotificationCompat.Builder builder = new NotificationCompat.Builder(this);
-        builder.setTicker(getString(R.string.draft_saved));
-        builder.setContentTitle(getString(R.string.draft_saved));
-        if (TextUtils.isEmpty(text)) {
-            builder.setContentText(getString(R.string.empty_content));
-        } else {
-            builder.setContentText(text);
-        }
-        builder.setSmallIcon(R.drawable.ic_stat_info);
-        builder.setAutoCancel(true);
-        final Intent draftsIntent = new Intent(this, DraftsFragment.class);
-        builder.setContentIntent(PendingIntent.getActivity(this, 0, draftsIntent, PendingIntent.FLAG_UPDATE_CURRENT));
-        final Intent serviceIntent = new Intent(this, BackgroundOperationService.class);
-        serviceIntent.setAction(INTENT_ACTION_DISCARD_DRAFT);
-        serviceIntent.setData(draftUri);
-        final Action.Builder actionBuilder = new Action.Builder(R.drawable.ic_action_delete, getString(R.string.discard),
-                PendingIntent.getService(this, 0, serviceIntent, PendingIntent.FLAG_UPDATE_CURRENT));
-        builder.addAction(actionBuilder.build());
-        nm.notify(draftUri.toString(), NOTIFICATION_ID_DRAFTS, builder.build());
+        final ContentValues values = new ContentValues();
+        values.put(BaseColumns._ID, draftUri.getLastPathSegment());
+        getContentResolver().insert(Drafts.CONTENT_URI_NOTIFICATIONS, values);
     }
 
     private ParcelableMediaUpdate[] getMedia() {
@@ -962,11 +973,9 @@ public class ComposeActivity extends ThemedFragmentActivity implements LocationL
         if (status == null || status.id <= 0) return false;
         final String myScreenName = Utils.getAccountScreenName(this, status.account_id);
         if (TextUtils.isEmpty(myScreenName)) return false;
-        if (status.is_quote) {
-            mEditText.append("@" + status.quoted_by_user_screen_name + " ");
-        }
+        int selectionStart = 0;
         mEditText.append("@" + status.user_screen_name + " ");
-        final int selectionStart = mEditText.length();
+        selectionStart = mEditText.length();
         if (status.is_retweet) {
             mEditText.append("@" + status.retweeted_by_user_screen_name + " ");
         }
@@ -1026,28 +1035,12 @@ public class ComposeActivity extends ThemedFragmentActivity implements LocationL
         final ParcelableAccount[] accounts = mAccountsAdapter.getSelectedAccounts();
         setSelectedAccounts(accounts);
         mEditText.setAccountId(accounts.length > 0 ? accounts[0].account_id : Utils.getDefaultAccountId(this));
+        setMenu();
 //        mAccountActionProvider.setSelectedAccounts(mAccountsAdapter.getSelectedAccounts());
     }
 
-    @TargetApi(Build.VERSION_CODES.KITKAT)
-    private boolean openDocument() {
-        final Intent intent = new Intent(Intent.ACTION_GET_CONTENT);
-        final String[] mimeTypes = {"image/png", "image/jpeg", "image/gif"};
-        intent.setType("image/*");
-        intent.putExtra(Intent.EXTRA_MIME_TYPES, mimeTypes);
-        intent.addCategory(Intent.CATEGORY_OPENABLE);
-        intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
-        try {
-            startActivityForResult(intent, REQUEST_OPEN_DOCUMENT);
-        } catch (final ActivityNotFoundException e) {
-            return false;
-        }
-        return true;
-    }
-
     private boolean pickImage() {
-        final Intent intent = new Intent(this, ImagePickerActivity.class);
-        intent.setAction(ImagePickerActivity.INTENT_ACTION_PICK_IMAGE);
+        final Intent intent = ThemedImagePickerActivity.withThemed(this).pickImage().build();
         startActivityForResult(intent, REQUEST_PICK_IMAGE);
         return true;
     }
@@ -1065,16 +1058,15 @@ public class ComposeActivity extends ThemedFragmentActivity implements LocationL
 
     private boolean setComposeTitle(final Intent intent) {
         final String action = intent.getAction();
-        final UserColorNameManager manager = UserColorNameManager.getInstance(this);
         final boolean nameFirst = mPreferences.getBoolean(KEY_NAME_FIRST);
         if (INTENT_ACTION_REPLY.equals(action)) {
             if (mInReplyToStatus == null) return false;
-            final String displayName = manager.getDisplayName(mInReplyToStatus.user_id, mInReplyToStatus.user_name,
+            final String displayName = mUserColorNameManager.getDisplayName(mInReplyToStatus.user_id, mInReplyToStatus.user_name,
                     mInReplyToStatus.user_screen_name, nameFirst, false);
             setTitle(getString(R.string.reply_to, displayName));
         } else if (INTENT_ACTION_QUOTE.equals(action)) {
             if (mInReplyToStatus == null) return false;
-            final String displayName = manager.getDisplayName(mInReplyToStatus.user_id, mInReplyToStatus.user_name,
+            final String displayName = mUserColorNameManager.getDisplayName(mInReplyToStatus.user_id, mInReplyToStatus.user_name,
                     mInReplyToStatus.user_screen_name, nameFirst, false);
             setTitle(getString(R.string.quote_user, displayName));
         } else if (INTENT_ACTION_EDIT_DRAFT.equals(action)) {
@@ -1082,7 +1074,7 @@ public class ComposeActivity extends ThemedFragmentActivity implements LocationL
             setTitle(R.string.edit_draft);
         } else if (INTENT_ACTION_MENTION.equals(action)) {
             if (mMentionUser == null) return false;
-            final String displayName = manager.getDisplayName(mMentionUser.id, mMentionUser.name,
+            final String displayName = mUserColorNameManager.getDisplayName(mMentionUser.id, mMentionUser.name,
                     mMentionUser.screen_name, nameFirst, false);
             setTitle(getString(R.string.mention_user, displayName));
         } else if (INTENT_ACTION_REPLY_MULTIPLE.equals(action)) {
@@ -1105,25 +1097,91 @@ public class ComposeActivity extends ThemedFragmentActivity implements LocationL
          * Has media & Not reply: [Take photo][Media menu][Attach location][Drafts]
          * Is reply: [Media menu][View status][Attach location][Drafts]
          */
-        MenuUtils.setMenuItemAvailability(menu, MENU_TAKE_PHOTO, !hasInReplyTo);
+        MenuUtils.setMenuItemAvailability(menu, R.id.take_photo, !hasInReplyTo);
         MenuUtils.setMenuItemAvailability(menu, R.id.take_photo_sub_item, hasInReplyTo);
-        MenuUtils.setMenuItemAvailability(menu, MENU_ADD_IMAGE, !hasMedia && !hasInReplyTo);
-        MenuUtils.setMenuItemAvailability(menu, MENU_VIEW, hasInReplyTo);
+        MenuUtils.setMenuItemAvailability(menu, R.id.add_image, !hasMedia && !hasInReplyTo);
+        MenuUtils.setMenuItemAvailability(menu, R.id.view, hasInReplyTo);
         MenuUtils.setMenuItemAvailability(menu, R.id.media_menu, hasMedia || hasInReplyTo);
-        MenuUtils.setMenuItemAvailability(menu, MENU_TOGGLE_SENSITIVE, hasMedia);
-        MenuUtils.setMenuItemAvailability(menu, MENU_EDIT_MEDIA, hasMedia);
+        MenuUtils.setMenuItemAvailability(menu, R.id.toggle_sensitive, hasMedia);
+        MenuUtils.setMenuItemAvailability(menu, R.id.edit_media, hasMedia);
         MenuUtils.setMenuItemAvailability(menu, R.id.link_to_quoted_status, isQuote());
+        MenuUtils.setMenuItemAvailability(menu, R.id.schedule, isScheduleSupported());
 
         menu.setGroupEnabled(MENU_GROUP_IMAGE_EXTENSION, hasMedia);
         menu.setGroupVisible(MENU_GROUP_IMAGE_EXTENSION, hasMedia);
-        MenuUtils.setMenuItemChecked(menu, MENU_TOGGLE_SENSITIVE, hasMedia && mIsPossiblySensitive);
+        MenuUtils.setMenuItemChecked(menu, R.id.toggle_sensitive, hasMedia && mIsPossiblySensitive);
         MenuUtils.setMenuItemChecked(menu, R.id.link_to_quoted_status, mPreferences.getBoolean(KEY_LINK_TO_QUOTED_TWEET));
         ThemeUtils.resetCheatSheet(mMenuBar);
 //        mMenuBar.show();
     }
 
+    private boolean isScheduleSupported() {
+        for (ParcelableCredentials account : mAccountsAdapter.getSelectedAccounts()) {
+            if (TwitterContentUtils.getOfficialKeyType(this, account.consumer_key, account.consumer_secret)
+                    != ConsumerKeyType.TWEETDECK) {
+                return false;
+            }
+        }
+        return true;
+    }
+
     private void setProgressVisible(final boolean visible) {
-//        mProgress.setVisibility(visible ? View.VISIBLE : View.GONE);
+        mSetProgressVisibleRunnable = new SetProgressVisibleRunnable(this, visible);
+        if (mFragmentResumed) {
+            runOnUiThread(mSetProgressVisibleRunnable);
+            mSetProgressVisibleRunnable = null;
+        }
+    }
+
+    @Override
+    protected void onResumeFragments() {
+        super.onResumeFragments();
+        mFragmentResumed = true;
+        if (mSetProgressVisibleRunnable != null) {
+            runOnUiThread(mSetProgressVisibleRunnable);
+            mSetProgressVisibleRunnable = null;
+        }
+    }
+
+    @Override
+    protected void onPause() {
+        super.onPause();
+        mFragmentResumed = false;
+    }
+
+    @Override
+    public void onRequestPermissionsResult(int requestCode, @NonNull String[] permissions, @NonNull int[] grantResults) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults);
+        if (PermissionUtils.getPermission(permissions, grantResults, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED ||
+                PermissionUtils.getPermission(permissions, grantResults, Manifest.permission.ACCESS_COARSE_LOCATION) == PackageManager.PERMISSION_GRANTED) {
+            startLocationUpdateIfEnabled();
+        } else {
+            //TODO show permission denied message
+        }
+    }
+
+    private static class SetProgressVisibleRunnable implements Runnable {
+
+        private final ComposeActivity activity;
+        private final boolean visible;
+
+        SetProgressVisibleRunnable(ComposeActivity activity, boolean visible) {
+            this.activity = activity;
+            this.visible = visible;
+        }
+
+        @Override
+        public void run() {
+            final FragmentManager fm = activity.getSupportFragmentManager();
+            final Fragment f = fm.findFragmentByTag(DISCARD_STATUS_DIALOG_FRAGMENT_TAG);
+            if (!visible && f instanceof DialogFragment) {
+                ((DialogFragment) f).dismiss();
+            } else if (visible) {
+                SupportProgressDialogFragment df = new SupportProgressDialogFragment();
+                df.show(fm, DISCARD_STATUS_DIALOG_FRAGMENT_TAG);
+                df.setCancelable(false);
+            }
+        }
     }
 
     private void setRecentLocation(ParcelableLocation location) {
@@ -1142,25 +1200,27 @@ public class ComposeActivity extends ThemedFragmentActivity implements LocationL
      */
     private boolean startLocationUpdateIfEnabled() {
         final LocationManager lm = mLocationManager;
+        try {
+            lm.removeUpdates(this);
+        } catch (SecurityException ignore) {
+        }
         final boolean attachLocation = mPreferences.getBoolean(KEY_ATTACH_LOCATION);
         if (!attachLocation) {
-            lm.removeUpdates(this);
             return false;
         }
         final Criteria criteria = new Criteria();
         criteria.setAccuracy(Criteria.ACCURACY_FINE);
         final String provider = lm.getBestProvider(criteria, true);
         if (provider != null) {
-            mLocationText.setText(R.string.getting_location);
-            lm.requestLocationUpdates(provider, 0, 0, this);
-            final Location location;
-            if (lm.isProviderEnabled(LocationManager.NETWORK_PROVIDER)) {
-                location = lm.getLastKnownLocation(LocationManager.NETWORK_PROVIDER);
-            } else {
-                location = lm.getLastKnownLocation(provider);
-            }
-            if (location != null) {
-                onLocationChanged(location);
+            try {
+                mLocationText.setText(R.string.getting_location);
+                lm.requestLocationUpdates(provider, 0, 0, this);
+                final Location location = Utils.getCachedLocation(this);
+                if (location != null) {
+                    onLocationChanged(location);
+                }
+            } catch (SecurityException e) {
+                return false;
             }
         } else {
             Toast.makeText(this, R.string.cannot_get_location, Toast.LENGTH_SHORT).show();
@@ -1169,8 +1229,7 @@ public class ComposeActivity extends ThemedFragmentActivity implements LocationL
     }
 
     private boolean takePhoto() {
-        final Intent intent = new Intent(this, ImagePickerActivity.class);
-        intent.setAction(ImagePickerActivity.INTENT_ACTION_TAKE_PHOTO);
+        final Intent intent = ThemedImagePickerActivity.withThemed(this).takePhoto().build();
         startActivityForResult(intent, REQUEST_TAKE_PHOTO);
         return true;
     }
@@ -1178,10 +1237,21 @@ public class ComposeActivity extends ThemedFragmentActivity implements LocationL
     private void toggleLocation() {
         final boolean attachLocation = mPreferences.getBoolean(KEY_ATTACH_LOCATION, false);
         mPreferences.edit().putBoolean(KEY_ATTACH_LOCATION, !attachLocation).apply();
-        startLocationUpdateIfEnabled();
+        requestOrUpdateLocation();
         updateLocationState();
         setMenu();
         updateTextCount();
+    }
+
+    private void requestOrUpdateLocation() {
+        if (ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_COARSE_LOCATION) == PackageManager.PERMISSION_GRANTED ||
+                ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED) {
+            startLocationUpdateIfEnabled();
+        } else {
+            final String[] permissions = {Manifest.permission.ACCESS_COARSE_LOCATION,
+                    Manifest.permission.ACCESS_FINE_LOCATION};
+            ActivityCompat.requestPermissions(this, permissions, REQUEST_REQUEST_PERMISSIONS);
+        }
     }
 
     private void updateLocationState() {
@@ -1220,18 +1290,6 @@ public class ComposeActivity extends ThemedFragmentActivity implements LocationL
             return;
         }
         final boolean attachLocation = mPreferences.getBoolean(KEY_ATTACH_LOCATION, false);
-//        if (mRecentLocation == null && attachLocation) {
-//            final Location location;
-//            if (mLocationManager.isProviderEnabled(LocationManager.NETWORK_PROVIDER)) {
-//                location = mLocationManager.getLastKnownLocation(LocationManager.NETWORK_PROVIDER);
-//            } else {
-//                location = null;
-//            }
-//            if (location != null) {
-//                mRecentLocation = new ParcelableLocation(location);
-//            }
-//            setRecentLocation();
-//        }
         final long[] accountIds = mAccountsAdapter.getSelectedAccountIds();
         final boolean isQuote = isQuote();
         final ParcelableLocation statusLocation = attachLocation ? mRecentLocation : null;
@@ -1302,29 +1360,26 @@ public class ComposeActivity extends ThemedFragmentActivity implements LocationL
 
     }
 
-    private static class AccountIconsAdapter extends Adapter<AccountIconViewHolder> {
+    private static class AccountIconsAdapter extends BaseRecyclerViewAdapter<AccountIconViewHolder> {
 
         private final ComposeActivity mActivity;
         private final LayoutInflater mInflater;
-        private final MediaLoaderWrapper mImageLoader;
         private final LongSparseArray<Boolean> mSelection;
         private final boolean mNameFirst;
 
-        private ParcelableAccount[] mAccounts;
+        private ParcelableCredentials[] mAccounts;
 
         public AccountIconsAdapter(ComposeActivity activity) {
+            super(activity);
             setHasStableIds(true);
             mActivity = activity;
             mInflater = activity.getLayoutInflater();
-            mImageLoader = TwidereApplication.getInstance(activity).getMediaLoaderWrapper();
             mSelection = new LongSparseArray<>();
-            final SharedPreferencesWrapper preferences = SharedPreferencesWrapper.getInstance(activity,
-                    SHARED_PREFERENCES_NAME, Context.MODE_PRIVATE, SharedPreferenceConstants.class);
-            mNameFirst = preferences.getBoolean(KEY_NAME_FIRST);
+            mNameFirst = mPreferences.getBoolean(KEY_NAME_FIRST);
         }
 
         public MediaLoaderWrapper getImageLoader() {
-            return mImageLoader;
+            return mMediaLoader;
         }
 
         @NonNull
@@ -1353,16 +1408,16 @@ public class ComposeActivity extends ThemedFragmentActivity implements LocationL
         }
 
         @NonNull
-        public ParcelableAccount[] getSelectedAccounts() {
-            if (mAccounts == null) return new ParcelableAccount[0];
-            final ParcelableAccount[] temp = new ParcelableAccount[mAccounts.length];
+        public ParcelableCredentials[] getSelectedAccounts() {
+            if (mAccounts == null) return new ParcelableCredentials[0];
+            final ParcelableCredentials[] temp = new ParcelableCredentials[mAccounts.length];
             int selectedCount = 0;
-            for (ParcelableAccount account : mAccounts) {
+            for (ParcelableCredentials account : mAccounts) {
                 if (mSelection.get(account.account_id, false)) {
                     temp[selectedCount++] = account;
                 }
             }
-            final ParcelableAccount[] result = new ParcelableAccount[selectedCount];
+            final ParcelableCredentials[] result = new ParcelableCredentials[selectedCount];
             System.arraycopy(temp, 0, result, 0, result.length);
             return result;
         }
@@ -1389,7 +1444,7 @@ public class ComposeActivity extends ThemedFragmentActivity implements LocationL
             return mAccounts != null ? mAccounts.length : 0;
         }
 
-        public void setAccounts(ParcelableAccount[] accounts) {
+        public void setAccounts(ParcelableCredentials[] accounts) {
             mAccounts = accounts;
             notifyDataSetChanged();
         }
@@ -1582,9 +1637,9 @@ public class ComposeActivity extends ThemedFragmentActivity implements LocationL
 
         private final MediaLoaderWrapper mImageLoader;
 
-        public MediaPreviewAdapter(final Context context) {
-            super(context, R.layout.grid_item_media_editor);
-            mImageLoader = TwidereApplication.getInstance(context).getMediaLoaderWrapper();
+        public MediaPreviewAdapter(final ComposeActivity activity) {
+            super(activity, R.layout.grid_item_media_editor);
+            mImageLoader = activity.mImageLoader;
         }
 
         public List<ParcelableMediaUpdate> getAsList() {

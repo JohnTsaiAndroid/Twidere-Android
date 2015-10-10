@@ -37,6 +37,7 @@ import org.mariotaku.twidere.api.twitter.model.Activity;
 import org.mariotaku.twidere.api.twitter.model.CardEntity;
 import org.mariotaku.twidere.api.twitter.model.DirectMessage;
 import org.mariotaku.twidere.api.twitter.model.ErrorInfo;
+import org.mariotaku.twidere.api.twitter.model.ExtendedProfile;
 import org.mariotaku.twidere.api.twitter.model.GeoLocation;
 import org.mariotaku.twidere.api.twitter.model.HashtagEntity;
 import org.mariotaku.twidere.api.twitter.model.IDs;
@@ -48,8 +49,11 @@ import org.mariotaku.twidere.api.twitter.model.PageableResponseList;
 import org.mariotaku.twidere.api.twitter.model.Place;
 import org.mariotaku.twidere.api.twitter.model.QueryResult;
 import org.mariotaku.twidere.api.twitter.model.Relationship;
+import org.mariotaku.twidere.api.twitter.model.ResponseCode;
 import org.mariotaku.twidere.api.twitter.model.ResponseList;
 import org.mariotaku.twidere.api.twitter.model.SavedSearch;
+import org.mariotaku.twidere.api.twitter.model.ScheduledStatus;
+import org.mariotaku.twidere.api.twitter.model.ScheduledStatusesList;
 import org.mariotaku.twidere.api.twitter.model.Status;
 import org.mariotaku.twidere.api.twitter.model.StatusActivitySummary;
 import org.mariotaku.twidere.api.twitter.model.StatusDeletionNotice;
@@ -67,6 +71,7 @@ import org.mariotaku.twidere.api.twitter.model.impl.ActivityImpl;
 import org.mariotaku.twidere.api.twitter.model.impl.CardEntityImpl;
 import org.mariotaku.twidere.api.twitter.model.impl.DirectMessageImpl;
 import org.mariotaku.twidere.api.twitter.model.impl.ErrorInfoImpl;
+import org.mariotaku.twidere.api.twitter.model.impl.ExtendedProfileImpl;
 import org.mariotaku.twidere.api.twitter.model.impl.HashtagEntityImpl;
 import org.mariotaku.twidere.api.twitter.model.impl.IDsImpl;
 import org.mariotaku.twidere.api.twitter.model.impl.Indices;
@@ -81,6 +86,8 @@ import org.mariotaku.twidere.api.twitter.model.impl.RelationshipImpl;
 import org.mariotaku.twidere.api.twitter.model.impl.RelationshipWrapper;
 import org.mariotaku.twidere.api.twitter.model.impl.ResponseListImpl;
 import org.mariotaku.twidere.api.twitter.model.impl.SavedSearchImpl;
+import org.mariotaku.twidere.api.twitter.model.impl.ScheduledStatusImpl;
+import org.mariotaku.twidere.api.twitter.model.impl.ScheduledStatusesListWrapper;
 import org.mariotaku.twidere.api.twitter.model.impl.StatusActivitySummaryImpl;
 import org.mariotaku.twidere.api.twitter.model.impl.StatusDeletionNoticeImpl;
 import org.mariotaku.twidere.api.twitter.model.impl.StatusImpl;
@@ -151,6 +158,8 @@ public class TwitterConverter implements Converter {
         TypeConverterMapper.register(Activity.class, ActivityImpl.class, ActivityImpl.MAPPER);
         TypeConverterMapper.register(Warning.class, WarningImpl.class);
         TypeConverterMapper.register(StatusDeletionNotice.class, StatusDeletionNoticeImpl.class);
+        TypeConverterMapper.register(ScheduledStatus.class, ScheduledStatusImpl.class);
+        TypeConverterMapper.register(ExtendedProfile.class, ExtendedProfileImpl.class);
 
         LoganSquare.registerTypeConverter(Indices.class, Indices.CONVERTER);
         LoganSquare.registerTypeConverter(GeoLocation.class, GeoLocation.CONVERTER);
@@ -159,11 +168,51 @@ public class TwitterConverter implements Converter {
         LoganSquare.registerTypeConverter(MediaEntity.Type.class, EnumConverter.get(MediaEntity.Type.class));
         LoganSquare.registerTypeConverter(UserList.Mode.class, EnumConverter.get(UserList.Mode.class));
         LoganSquare.registerTypeConverter(Activity.Action.class, EnumConverter.get(Activity.Action.class));
+        LoganSquare.registerTypeConverter(ScheduledStatus.State.class, EnumConverter.get(ScheduledStatus.State.class));
 
         registerWrapper(QueryResult.class, QueryResultWrapper.class);
         registerWrapper(PageableResponseList.class, PageableResponseListWrapper.class);
         registerWrapper(Relationship.class, RelationshipWrapper.class);
         registerWrapper(CardEntity.BindingValue.class, CardEntityImpl.BindingValueWrapper.class);
+        registerWrapper(ScheduledStatusesList.class, ScheduledStatusesListWrapper.class);
+    }
+
+    public static TwitterException parseTwitterException(RestHttpResponse resp) {
+        try {
+            final TypedData body = resp.getBody();
+            if (body == null) return new TwitterException(resp);
+            final TwitterException parse = LoganSquare.parse(body.stream(), TwitterException.class);
+            if (parse != null) return parse;
+            return new TwitterException(resp);
+        } catch (JsonParseException e) {
+            return new TwitterException("Malformed JSON Data", e, resp);
+        } catch (IOException e) {
+            return new TwitterException("IOException while throwing exception", e, resp);
+        }
+    }
+
+    private static <T> T parseOrThrow(RestHttpResponse resp, InputStream stream, Class<T> cls) throws IOException, TwitterException {
+        try {
+            final T parse = LoganSquare.parse(stream, cls);
+            if (TwitterException.class.isAssignableFrom(cls) && parse == null) {
+                throw new TwitterException();
+            }
+            return parse;
+        } catch (JsonParseException e) {
+            throw new TwitterException("Malformed JSON Data", resp);
+        }
+    }
+
+    private static <T> List<T> parseListOrThrow(RestHttpResponse resp, InputStream stream, Class<T> elementCls) throws IOException, TwitterException {
+        try {
+            return LoganSquare.parseList(stream, elementCls);
+        } catch (JsonParseException e) {
+            throw new TwitterException("Malformed JSON Data", resp);
+        }
+    }
+
+    private static <T> void registerWrapper(Class<T> cls, Class<? extends Wrapper<? extends T>> wrapperCls) {
+        wrapperMap.put(cls, wrapperCls);
     }
 
     @Override
@@ -194,6 +243,8 @@ public class TwitterConverter implements Converter {
                     } catch (ParseException e) {
                         throw new IOException(e);
                     }
+                } else if (ResponseCode.class.isAssignableFrom(cls)) {
+                    return new ResponseCode(response);
                 }
                 final Object object = parseOrThrow(response, stream, cls);
                 checkResponse(cls, object, response);
@@ -224,30 +275,10 @@ public class TwitterConverter implements Converter {
         }
     }
 
-    private static <T> T parseOrThrow(RestHttpResponse resp, InputStream stream, Class<T> cls) throws IOException, TwitterException {
-        try {
-            return LoganSquare.parse(stream, cls);
-        } catch (JsonParseException e) {
-            throw new TwitterException("Malformed JSON Data", resp);
-        }
-    }
-
-    private static <T> List<T> parseListOrThrow(RestHttpResponse resp, InputStream stream, Class<T> elementCls) throws IOException, TwitterException {
-        try {
-            return LoganSquare.parseList(stream, elementCls);
-        } catch (JsonParseException e) {
-            throw new TwitterException("Malformed JSON Data", resp);
-        }
-    }
-
     private void checkResponse(Class<?> cls, Object object, RestHttpResponse response) throws TwitterException {
         if (User.class.isAssignableFrom(cls)) {
             if (object == null) throw new TwitterException("User is null");
         }
-    }
-
-    private static <T> void registerWrapper(Class<T> cls, Class<? extends Wrapper<? extends T>> wrapperCls) {
-        wrapperMap.put(cls, wrapperCls);
     }
 
     private static class EnumConverter<T extends Enum<T>> implements TypeConverter<T> {
@@ -255,6 +286,10 @@ public class TwitterConverter implements Converter {
 
         EnumConverter(Class<T> cls) {
             this.cls = cls;
+        }
+
+        public static <T extends Enum<T>> EnumConverter<T> get(Class<T> cls) {
+            return new EnumConverter<>(cls);
         }
 
         @SuppressWarnings({"unchecked", "TryWithIdenticalCatches"})
@@ -275,10 +310,6 @@ public class TwitterConverter implements Converter {
         @Override
         public void serialize(T object, String fieldName, boolean writeFieldNameForObject, JsonGenerator jsonGenerator) {
             throw new UnsupportedOperationException();
-        }
-
-        public static <T extends Enum<T>> EnumConverter<T> get(Class<T> cls) {
-            return new EnumConverter<>(cls);
         }
     }
 

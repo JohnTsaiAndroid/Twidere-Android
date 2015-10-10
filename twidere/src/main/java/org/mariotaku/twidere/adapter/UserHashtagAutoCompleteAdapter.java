@@ -32,10 +32,10 @@ import android.widget.EditText;
 import android.widget.FilterQueryProvider;
 import android.widget.TextView;
 
-import org.mariotaku.querybuilder.Columns.Column;
-import org.mariotaku.querybuilder.Expression;
-import org.mariotaku.querybuilder.OrderBy;
-import org.mariotaku.querybuilder.RawItemArray;
+import org.mariotaku.sqliteqb.library.Columns.Column;
+import org.mariotaku.sqliteqb.library.Expression;
+import org.mariotaku.sqliteqb.library.OrderBy;
+import org.mariotaku.sqliteqb.library.RawItemArray;
 import org.mariotaku.twidere.BuildConfig;
 import org.mariotaku.twidere.Constants;
 import org.mariotaku.twidere.R;
@@ -48,7 +48,11 @@ import org.mariotaku.twidere.util.ParseUtils;
 import org.mariotaku.twidere.util.SharedPreferencesWrapper;
 import org.mariotaku.twidere.util.UserColorNameManager;
 import org.mariotaku.twidere.util.Utils;
-import org.mariotaku.twidere.view.ShapedImageView;
+import org.mariotaku.twidere.util.dagger.ApplicationModule;
+import org.mariotaku.twidere.util.dagger.DaggerGeneralComponent;
+import org.mariotaku.twidere.view.ProfileImageView;
+
+import javax.inject.Inject;
 
 
 public class UserHashtagAutoCompleteAdapter extends SimpleCursorAdapter implements Constants {
@@ -60,17 +64,16 @@ public class UserHashtagAutoCompleteAdapter extends SimpleCursorAdapter implemen
     private final ContentResolver mResolver;
     @NonNull
     private final SQLiteDatabase mDatabase;
-    @NonNull
-    private final MediaLoaderWrapper mProfileImageLoader;
-    @NonNull
-    private final SharedPreferencesWrapper mPreferences;
-    @NonNull
-    private final UserColorNameManager mUserColorNameManager;
+    @Inject
+    MediaLoaderWrapper mProfileImageLoader;
+    @Inject
+    SharedPreferencesWrapper mPreferences;
+    @Inject
+    UserColorNameManager mUserColorNameManager;
 
     private final EditText mEditText;
 
     private final boolean mDisplayProfileImage;
-    private final int mProfileImageStyle;
 
     private int mProfileImageUrlIdx, mNameIdx, mScreenNameIdx, mUserIdIdx;
     private char mToken = '@';
@@ -82,15 +85,12 @@ public class UserHashtagAutoCompleteAdapter extends SimpleCursorAdapter implemen
 
     public UserHashtagAutoCompleteAdapter(final Context context, final EditText view) {
         super(context, R.layout.list_item_auto_complete, null, FROM, TO, 0);
+        DaggerGeneralComponent.builder().applicationModule(ApplicationModule.get(context)).build().inject(this);
         mEditText = view;
         final TwidereApplication app = TwidereApplication.getInstance(context);
-        mPreferences = SharedPreferencesWrapper.getInstance(context, SHARED_PREFERENCES_NAME, Context.MODE_PRIVATE);
-        mUserColorNameManager = app.getUserColorNameManager();
         mResolver = context.getContentResolver();
-        mProfileImageLoader = app.getMediaLoaderWrapper();
         mDatabase = app.getSQLiteDatabase();
         mDisplayProfileImage = mPreferences.getBoolean(KEY_DISPLAY_PROFILE_IMAGE, true);
-        mProfileImageStyle = Utils.getProfileImageStyle(mPreferences.getString(KEY_PROFILE_IMAGE_STYLE, null));
     }
 
     public UserHashtagAutoCompleteAdapter(final EditText view) {
@@ -102,7 +102,7 @@ public class UserHashtagAutoCompleteAdapter extends SimpleCursorAdapter implemen
         if (isCursorClosed()) return;
         final TextView text1 = (TextView) view.findViewById(android.R.id.text1);
         final TextView text2 = (TextView) view.findViewById(android.R.id.text2);
-        final ShapedImageView icon = (ShapedImageView) view.findViewById(android.R.id.icon);
+        final ProfileImageView icon = (ProfileImageView) view.findViewById(android.R.id.icon);
 
         // Clear images in order to prevent images in recycled view shown.
         icon.setImageDrawable(null);
@@ -119,13 +119,11 @@ public class UserHashtagAutoCompleteAdapter extends SimpleCursorAdapter implemen
             if (mDisplayProfileImage) {
                 final String profileImageUrl = cursor.getString(mProfileImageUrlIdx);
                 mProfileImageLoader.displayProfileImage(icon, profileImageUrl);
-                icon.setStyle(mProfileImageStyle);
             } else {
                 mProfileImageLoader.cancelDisplayTask(icon);
             }
             icon.clearColorFilter();
         } else {
-            icon.setStyle(mProfileImageStyle);
             icon.setImageResource(R.drawable.ic_action_hashtag);
             icon.setColorFilter(text1.getCurrentTextColor(), Mode.SRC_ATOP);
         }

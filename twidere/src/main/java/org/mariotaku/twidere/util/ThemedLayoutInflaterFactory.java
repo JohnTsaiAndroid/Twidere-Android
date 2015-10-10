@@ -48,11 +48,12 @@ import org.mariotaku.twidere.R;
 import org.mariotaku.twidere.activity.AppCompatPreferenceActivity;
 import org.mariotaku.twidere.activity.iface.IThemedActivity;
 import org.mariotaku.twidere.util.support.ViewSupport;
+import org.mariotaku.twidere.view.ProfileImageView;
 import org.mariotaku.twidere.view.ShapedImageView;
 import org.mariotaku.twidere.view.TwidereToolbar;
-import org.mariotaku.twidere.view.iface.ICustomTypefaceTextView;
 import org.mariotaku.twidere.view.iface.IThemeAccentView;
 import org.mariotaku.twidere.view.iface.IThemeBackgroundTintView;
+import org.mariotaku.twidere.view.themed.ThemedTextView;
 
 import java.lang.reflect.Constructor;
 import java.lang.reflect.InvocationTargetException;
@@ -124,7 +125,11 @@ public class ThemedLayoutInflaterFactory implements LayoutInflaterFactory {
             final ShapedImageView shapedImageView = (ShapedImageView) view;
             shapedImageView.setStyle(activity.getCurrentProfileImageStyle());
         }
-        if (view instanceof TextView && (!(view instanceof ICustomTypefaceTextView))) {
+        if (view instanceof ProfileImageView) {
+            final ProfileImageView profileImageView = (ProfileImageView) view;
+            profileImageView.setOval(activity.getCurrentProfileImageStyle() == ShapedImageView.SHAPE_CIRCLE);
+        }
+        if (view instanceof ThemedTextView) {
             final String fontFamily = activity.getCurrentThemeFontFamily();
             final TextView textView = (TextView) view;
             final Typeface defTypeface = textView.getTypeface();
@@ -165,8 +170,8 @@ public class ThemedLayoutInflaterFactory implements LayoutInflaterFactory {
             // View context is derived from ActionBar and it's light theme, so we use contrast color
             final int actionBarColor = activity.getCurrentThemeColor();
             final int actionBarTheme = ThemeUtils.getActionBarThemeResource(activity.getThemeResourceId(), actionBarColor);
-            accentColor = ThemeUtils.getColorFromAttribute(viewContext,android.R.attr.colorForeground, 0);
-            noTintColor = ThemeUtils.getColorFromAttribute(viewContext,android.R.attr.colorBackground, 0);
+            accentColor = ThemeUtils.getColorFromAttribute(viewContext, android.R.attr.colorForeground, 0);
+            noTintColor = ThemeUtils.getColorFromAttribute(viewContext, android.R.attr.colorBackground, 0);
             backgroundTintColor = accentColor;
             backgroundColorApprox = Color.WHITE;
             isColorTint = false;

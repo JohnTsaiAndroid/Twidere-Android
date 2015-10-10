@@ -25,7 +25,7 @@ import android.net.Uri;
 import android.support.annotation.NonNull;
 import android.support.v4.app.FragmentActivity;
 
-import org.mariotaku.twidere.adapter.CursorStatusesAdapter;
+import org.mariotaku.twidere.adapter.ParcelableStatusesAdapter;
 import org.mariotaku.twidere.provider.TwidereDataStore.Mentions;
 import org.mariotaku.twidere.util.AsyncTwitterWrapper;
 
@@ -41,15 +41,15 @@ public class MentionsTimelineFragment extends CursorStatusesFragment {
 
     @NonNull
     @Override
-    protected CursorStatusesAdapter onCreateAdapter(Context context, boolean compact) {
-        final CursorStatusesAdapter adapter = super.onCreateAdapter(context, compact);
+    protected ParcelableStatusesAdapter onCreateAdapter(Context context, boolean compact) {
+        final ParcelableStatusesAdapter adapter = super.onCreateAdapter(context, compact);
         adapter.setShowInReplyTo(false);
         return adapter;
     }
 
     @Override
     public boolean isRefreshing() {
-        final AsyncTwitterWrapper twitter = getTwitterWrapper();
+        final AsyncTwitterWrapper twitter = mTwitterWrapper;
         return twitter != null && twitter.isMentionsTimelineRefreshing();
     }
 
@@ -65,14 +65,14 @@ public class MentionsTimelineFragment extends CursorStatusesFragment {
 
     @Override
     protected void updateRefreshState() {
-        final AsyncTwitterWrapper twitter = getTwitterWrapper();
+        final AsyncTwitterWrapper twitter = mTwitterWrapper;
         if (twitter == null) return;
         setRefreshing(twitter.isMentionsTimelineRefreshing());
     }
 
     @Override
     public boolean getStatuses(long[] accountIds, long[] maxIds, long[] sinceIds) {
-        final AsyncTwitterWrapper twitter = getTwitterWrapper();
+        final AsyncTwitterWrapper twitter = mTwitterWrapper;
         if (twitter == null) return false;
         return twitter.getMentionsTimelineAsync(accountIds, maxIds, sinceIds);
     }
@@ -83,7 +83,10 @@ public class MentionsTimelineFragment extends CursorStatusesFragment {
         final FragmentActivity activity = getActivity();
         if (isVisibleToUser && activity != null) {
             final NotificationManager nm = (NotificationManager) activity.getSystemService(Context.NOTIFICATION_SERVICE);
-            nm.cancel(NOTIFICATION_ID_MENTIONS_TIMELINE);
+            for (long accountId : getAccountIds()) {
+                final String tag = "mentions_" + accountId;
+                nm.cancel(tag, NOTIFICATION_ID_MENTIONS_TIMELINE);
+            }
         }
     }
 

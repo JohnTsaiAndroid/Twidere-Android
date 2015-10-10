@@ -28,6 +28,7 @@ import com.bluelinelabs.logansquare.annotation.JsonObject;
 
 import org.mariotaku.twidere.api.twitter.model.User;
 import org.mariotaku.twidere.api.twitter.model.UserList;
+import org.mariotaku.twidere.util.TwitterContentUtils;
 
 @JsonObject
 public class ParcelableUserList implements Parcelable, Comparable<ParcelableUserList> {
@@ -114,9 +115,19 @@ public class ParcelableUserList implements Parcelable, Comparable<ParcelableUser
         user_id = user.getId();
         user_name = user.getName();
         user_screen_name = user.getScreenName();
-        user_profile_image_url = user.getProfileImageUrlHttps();
+        user_profile_image_url = TwitterContentUtils.getProfileImageUrl(user);
         members_count = list.getMemberCount();
         subscribers_count = list.getSubscriberCount();
+    }
+
+    public static ParcelableUserList[] fromUserLists(UserList[] userLists, long accountId) {
+        if (userLists == null) return null;
+        int size = userLists.length;
+        final ParcelableUserList[] result = new ParcelableUserList[size];
+        for (int i = 0; i < size; i++) {
+            result[i] = new ParcelableUserList(userLists[i], accountId);
+        }
+        return result;
     }
 
     @Override
@@ -177,5 +188,4 @@ public class ParcelableUserList implements Parcelable, Comparable<ParcelableUser
         out.writeLong(members_count);
         out.writeLong(subscribers_count);
     }
-
 }

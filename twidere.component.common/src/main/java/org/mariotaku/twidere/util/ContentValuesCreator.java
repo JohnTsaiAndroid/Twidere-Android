@@ -29,6 +29,7 @@ import org.json.JSONObject;
 import org.mariotaku.twidere.TwidereConstants;
 import org.mariotaku.twidere.api.twitter.auth.OAuthAuthorization;
 import org.mariotaku.twidere.api.twitter.auth.OAuthToken;
+import org.mariotaku.twidere.api.twitter.model.Activity;
 import org.mariotaku.twidere.api.twitter.model.DirectMessage;
 import org.mariotaku.twidere.api.twitter.model.GeoLocation;
 import org.mariotaku.twidere.api.twitter.model.Place;
@@ -39,6 +40,7 @@ import org.mariotaku.twidere.api.twitter.model.Trend;
 import org.mariotaku.twidere.api.twitter.model.Trends;
 import org.mariotaku.twidere.api.twitter.model.UrlEntity;
 import org.mariotaku.twidere.api.twitter.model.User;
+import org.mariotaku.twidere.api.twitter.model.UserList;
 import org.mariotaku.twidere.model.ParcelableAccount;
 import org.mariotaku.twidere.model.ParcelableCredentials;
 import org.mariotaku.twidere.model.ParcelableDirectMessage;
@@ -51,6 +53,7 @@ import org.mariotaku.twidere.model.ParcelableStatusUpdate;
 import org.mariotaku.twidere.model.ParcelableUser;
 import org.mariotaku.twidere.model.ParcelableUserMention;
 import org.mariotaku.twidere.provider.TwidereDataStore.Accounts;
+import org.mariotaku.twidere.provider.TwidereDataStore.Activities;
 import org.mariotaku.twidere.provider.TwidereDataStore.CachedRelationships;
 import org.mariotaku.twidere.provider.TwidereDataStore.CachedTrends;
 import org.mariotaku.twidere.provider.TwidereDataStore.CachedUsers;
@@ -81,7 +84,7 @@ public final class ContentValuesCreator implements TwidereConstants {
         values.put(Accounts.ACCOUNT_ID, user.getId());
         values.put(Accounts.SCREEN_NAME, user.getScreenName());
         values.put(Accounts.NAME, user.getName());
-        values.put(Accounts.PROFILE_IMAGE_URL, user.getProfileImageUrlHttps());
+        values.put(Accounts.PROFILE_IMAGE_URL, TwitterContentUtils.getProfileImageUrl(user));
         values.put(Accounts.PROFILE_BANNER_URL, user.getProfileBannerImageUrl());
         values.put(Accounts.COLOR, color);
         values.put(Accounts.IS_ACTIVATED, 1);
@@ -105,7 +108,7 @@ public final class ContentValuesCreator implements TwidereConstants {
         values.put(Accounts.ACCOUNT_ID, user.getId());
         values.put(Accounts.SCREEN_NAME, user.getScreenName());
         values.put(Accounts.NAME, user.getName());
-        values.put(Accounts.PROFILE_IMAGE_URL, user.getProfileImageUrlHttps());
+        values.put(Accounts.PROFILE_IMAGE_URL, TwitterContentUtils.getProfileImageUrl(user));
         values.put(Accounts.PROFILE_BANNER_URL, user.getProfileBannerImageUrl());
         values.put(Accounts.COLOR, color);
         values.put(Accounts.IS_ACTIVATED, 1);
@@ -123,8 +126,8 @@ public final class ContentValuesCreator implements TwidereConstants {
         values.put(Accounts.ACCOUNT_ID, user.getId());
         values.put(Accounts.SCREEN_NAME, user.getScreenName());
         values.put(Accounts.NAME, user.getName());
-        values.put(Accounts.PROFILE_IMAGE_URL, (user.getProfileImageUrlHttps()));
-        values.put(Accounts.PROFILE_BANNER_URL, (user.getProfileBannerImageUrl()));
+        values.put(Accounts.PROFILE_IMAGE_URL, TwitterContentUtils.getProfileImageUrl(user));
+        values.put(Accounts.PROFILE_BANNER_URL, user.getProfileBannerImageUrl());
         values.put(Accounts.COLOR, color);
         values.put(Accounts.IS_ACTIVATED, 1);
         values.put(Accounts.API_URL_FORMAT, apiUrlFormat);
@@ -147,7 +150,7 @@ public final class ContentValuesCreator implements TwidereConstants {
 
     public static ContentValues createCachedUser(final User user) {
         if (user == null || user.getId() <= 0) return null;
-        final String profile_image_url = user.getProfileImageUrlHttps();
+        final String profile_image_url = TwitterContentUtils.getProfileImageUrl(user);
         final String url = user.getUrl();
         final UrlEntity[] urls = user.getUrlEntities();
         final ContentValues values = new ContentValues();
@@ -186,8 +189,8 @@ public final class ContentValuesCreator implements TwidereConstants {
         final ContentValues values = new ContentValues();
         final User sender = message.getSender(), recipient = message.getRecipient();
         if (sender == null || recipient == null) return null;
-        final String sender_profile_image_url = sender.getProfileImageUrlHttps();
-        final String recipient_profile_image_url = recipient.getProfileImageUrlHttps();
+        final String sender_profile_image_url = TwitterContentUtils.getProfileImageUrl(sender);
+        final String recipient_profile_image_url = TwitterContentUtils.getProfileImageUrl(recipient);
         values.put(DirectMessages.ACCOUNT_ID, accountId);
         values.put(DirectMessages.MESSAGE_ID, message.getId());
         values.put(DirectMessages.MESSAGE_TIMESTAMP, message.getCreatedAt().getTime());
@@ -322,6 +325,8 @@ public final class ContentValuesCreator implements TwidereConstants {
         values.put(Statuses.ACCOUNT_ID, accountId);
         values.put(Statuses.STATUS_ID, orig.getId());
         values.put(Statuses.STATUS_TIMESTAMP, orig.getCreatedAt().getTime());
+
+
         final Status status;
         if (orig.isRetweet()) {
             final Status retweetedStatus = orig.getRetweetedStatus();
@@ -332,7 +337,7 @@ public final class ContentValuesCreator implements TwidereConstants {
             values.put(Statuses.RETWEETED_BY_USER_ID, retweetedById);
             values.put(Statuses.RETWEETED_BY_USER_NAME, retweetUser.getName());
             values.put(Statuses.RETWEETED_BY_USER_SCREEN_NAME, retweetUser.getScreenName());
-            values.put(Statuses.RETWEETED_BY_USER_PROFILE_IMAGE, (retweetUser.getProfileImageUrlHttps()));
+            values.put(Statuses.RETWEETED_BY_USER_PROFILE_IMAGE, TwitterContentUtils.getProfileImageUrl(retweetUser));
             values.put(Statuses.IS_RETWEET, true);
             if (retweetedById == accountId) {
                 values.put(Statuses.MY_RETWEET_ID, orig.getId());
@@ -341,31 +346,31 @@ public final class ContentValuesCreator implements TwidereConstants {
             }
             status = retweetedStatus;
         } else if (orig.isQuote()) {
-            final Status quotedStatus = orig.getQuotedStatus();
-            final User quoteUser = orig.getUser();
-            final long quotedById = quoteUser.getId();
-            values.put(Statuses.QUOTE_ID, quotedStatus.getId());
-            final String textHtml = TwitterContentUtils.formatStatusText(orig);
-            values.put(Statuses.QUOTE_TEXT_HTML, textHtml);
-            values.put(Statuses.QUOTE_TEXT_PLAIN, TwitterContentUtils.unescapeTwitterStatusText(orig.getText()));
-            values.put(Statuses.QUOTE_TEXT_UNESCAPED, toPlainText(textHtml));
-            values.put(Statuses.QUOTE_TIMESTAMP, orig.getCreatedAt().getTime());
-            values.put(Statuses.QUOTE_SOURCE, orig.getSource());
-            final ParcelableMedia[] quoteMedia = ParcelableMedia.fromStatus(orig);
+            final Status quoted = orig.getQuotedStatus();
+            final User quotedUser = quoted.getUser();
+            final long quotedById = quotedUser.getId();
+            values.put(Statuses.QUOTED_ID, quoted.getId());
+            final String textHtml = TwitterContentUtils.formatStatusText(quoted);
+            values.put(Statuses.QUOTED_TEXT_HTML, textHtml);
+            values.put(Statuses.QUOTED_TEXT_PLAIN, TwitterContentUtils.unescapeTwitterStatusText(quoted.getText()));
+            values.put(Statuses.QUOTED_TEXT_UNESCAPED, toPlainText(textHtml));
+            values.put(Statuses.QUOTED_TIMESTAMP, quoted.getCreatedAt().getTime());
+            values.put(Statuses.QUOTED_SOURCE, quoted.getSource());
+            final ParcelableMedia[] quoteMedia = ParcelableMedia.fromStatus(quoted);
             if (quoteMedia != null && quoteMedia.length > 0) {
                 try {
-                    values.put(Statuses.QUOTE_MEDIA_JSON, LoganSquare.serialize(Arrays.asList(quoteMedia), ParcelableMedia.class));
+                    values.put(Statuses.QUOTED_MEDIA_JSON, LoganSquare.serialize(Arrays.asList(quoteMedia), ParcelableMedia.class));
                 } catch (IOException ignored) {
                 }
             }
-            values.put(Statuses.QUOTED_BY_USER_ID, quotedById);
-            values.put(Statuses.QUOTED_BY_USER_NAME, quoteUser.getName());
-            values.put(Statuses.QUOTED_BY_USER_SCREEN_NAME, quoteUser.getScreenName());
-            values.put(Statuses.QUOTED_BY_USER_PROFILE_IMAGE, quoteUser.getProfileImageUrlHttps());
-            values.put(Statuses.QUOTED_BY_USER_IS_VERIFIED, quoteUser.isVerified());
-            values.put(Statuses.QUOTED_BY_USER_IS_PROTECTED, quoteUser.isProtected());
+            values.put(Statuses.QUOTED_USER_ID, quotedById);
+            values.put(Statuses.QUOTED_USER_NAME, quotedUser.getName());
+            values.put(Statuses.QUOTED_USER_SCREEN_NAME, quotedUser.getScreenName());
+            values.put(Statuses.QUOTED_USER_PROFILE_IMAGE, TwitterContentUtils.getProfileImageUrl(quotedUser));
+            values.put(Statuses.QUOTED_USER_IS_VERIFIED, quotedUser.isVerified());
+            values.put(Statuses.QUOTED_USER_IS_PROTECTED, quotedUser.isProtected());
             values.put(Statuses.IS_QUOTE, true);
-            status = quotedStatus;
+            status = orig;
         } else {
             values.put(Statuses.MY_RETWEET_ID, orig.getCurrentUserRetweet());
             status = orig;
@@ -375,15 +380,23 @@ public final class ContentValuesCreator implements TwidereConstants {
             values.put(Statuses.IN_REPLY_TO_USER_ID, status.getInReplyToUserId());
             values.put(Statuses.IN_REPLY_TO_USER_NAME, TwitterContentUtils.getInReplyToName(status));
             values.put(Statuses.IN_REPLY_TO_USER_SCREEN_NAME, status.getInReplyToScreenName());
+            values.put(Statuses.RETWEET_COUNT, status.getRetweetCount());
+            values.put(Statuses.FAVORITE_COUNT, status.getFavoriteCount());
+            values.put(Statuses.REPLY_COUNT, status.getReplyCount());
+
         } else {
             values.put(Statuses.IN_REPLY_TO_STATUS_ID, orig.getInReplyToStatusId());
             values.put(Statuses.IN_REPLY_TO_USER_ID, orig.getInReplyToUserId());
             values.put(Statuses.IN_REPLY_TO_USER_NAME, TwitterContentUtils.getInReplyToName(orig));
             values.put(Statuses.IN_REPLY_TO_USER_SCREEN_NAME, orig.getInReplyToScreenName());
+
+            values.put(Statuses.RETWEET_COUNT, orig.getRetweetCount());
+            values.put(Statuses.FAVORITE_COUNT, orig.getFavoriteCount());
+            values.put(Statuses.REPLY_COUNT, orig.getReplyCount());
         }
         final User user = status.getUser();
         final long userId = user.getId();
-        final String profileImageUrl = (user.getProfileImageUrlHttps());
+        final String profileImageUrl = TwitterContentUtils.getProfileImageUrl(user);
         final String name = user.getName(), screenName = user.getScreenName();
         values.put(Statuses.USER_ID, userId);
         values.put(Statuses.USER_NAME, name);
@@ -391,15 +404,11 @@ public final class ContentValuesCreator implements TwidereConstants {
         values.put(Statuses.IS_PROTECTED, user.isProtected());
         values.put(Statuses.IS_VERIFIED, user.isVerified());
         values.put(Statuses.USER_PROFILE_IMAGE_URL, profileImageUrl);
-        values.put(CachedUsers.IS_FOLLOWING, user.isFollowing());
+        values.put(Statuses.IS_FOLLOWING, user.isFollowing());
         final String textHtml = TwitterContentUtils.formatStatusText(status);
         values.put(Statuses.TEXT_HTML, textHtml);
         values.put(Statuses.TEXT_PLAIN, TwitterContentUtils.unescapeTwitterStatusText(status.getText()));
         values.put(Statuses.TEXT_UNESCAPED, toPlainText(textHtml));
-        values.put(Statuses.RETWEET_COUNT, status.getRetweetCount());
-        values.put(Statuses.REPLY_COUNT, status.getReplyCount());
-        values.put(Statuses.FAVORITE_COUNT, status.getFavoriteCount());
-        values.put(Statuses.DESCENDENT_REPLY_COUNT, status.getDescendentReplyCount());
         values.put(Statuses.SOURCE, status.getSource());
         values.put(Statuses.IS_POSSIBLY_SENSITIVE, status.isPossiblySensitive());
         final GeoLocation location = status.getGeoLocation();
@@ -440,6 +449,71 @@ public final class ContentValuesCreator implements TwidereConstants {
         return createStatusDraft(status, ParcelableAccount.getAccountIds(status.accounts));
     }
 
+    @NonNull
+    public static ContentValues createActivity(final Activity activity, final long accountId) {
+        final ContentValues values;
+        switch (activity.getAction()) {
+            case REPLY: {
+                values = createStatusActivity(activity.getTargetStatuses()[0]);
+                break;
+            }
+            case MENTION: {
+                values = createStatusActivity(activity.getTargetObjectStatuses()[0]);
+                break;
+            }
+            default: {
+                values = new ContentValues();
+                break;
+            }
+        }
+        values.put(Activities.ACCOUNT_ID, accountId);
+        values.put(Activities.TIMESTAMP, activity.getCreatedAt().getTime());
+        values.put(Activities.MIN_POSITION, activity.getMinPosition());
+        values.put(Activities.MAX_POSITION, activity.getMaxPosition());
+        values.put(Activities.SOURCES, SerializeUtils.serializeArray(User.class, activity.getSources()));
+        values.put(Activities.TARGET_STATUSES, SerializeUtils.serializeArray(Status.class, activity.getTargetStatuses()));
+        values.put(Activities.TARGET_USERS, SerializeUtils.serializeArray(User.class, activity.getTargetUsers()));
+        values.put(Activities.TARGET_USER_LISTS, SerializeUtils.serializeArray(UserList.class, activity.getTargetUserLists()));
+        values.put(Activities.TARGET_OBJECT_STATUSES, SerializeUtils.serializeArray(Status.class, activity.getTargetObjectStatuses()));
+        values.put(Activities.TARGET_OBJECT_USER_LISTS, SerializeUtils.serializeArray(UserList.class, activity.getTargetObjectUserLists()));
+        return values;
+    }
+
+    @NonNull
+    public static ContentValues createStatusActivity(final Status orig) {
+        if (orig == null) throw new NullPointerException();
+        final ContentValues values = new ContentValues();
+        final Status status;
+        if (orig.isRetweet()) {
+            final Status retweetedStatus = orig.getRetweetedStatus();
+            final User retweetUser = orig.getUser();
+            final long retweetedById = retweetUser.getId();
+            values.put(Activities.STATUS_RETWEETED_BY_USER_ID, retweetedById);
+            status = retweetedStatus;
+        } else if (orig.isQuote()) {
+            final Status quotedStatus = orig.getQuotedStatus();
+            final User quoteUser = orig.getUser();
+            final long quotedById = quoteUser.getId();
+            final String textHtml = TwitterContentUtils.formatStatusText(orig);
+            values.put(Activities.STATUS_QUOTE_TEXT_HTML, textHtml);
+            values.put(Activities.STATUS_QUOTE_TEXT_PLAIN, TwitterContentUtils.unescapeTwitterStatusText(orig.getText()));
+            values.put(Activities.STATUS_QUOTE_SOURCE, orig.getSource());
+            values.put(Activities.STATUS_QUOTED_USER_ID, quotedById);
+            status = quotedStatus;
+        } else {
+            status = orig;
+        }
+        final User user = status.getUser();
+        final long userId = user.getId();
+        values.put(Activities.STATUS_USER_ID, userId);
+        final String textHtml = TwitterContentUtils.formatStatusText(status);
+        values.put(Activities.STATUS_TEXT_HTML, textHtml);
+        values.put(Activities.STATUS_TEXT_PLAIN, TwitterContentUtils.unescapeTwitterStatusText(status.getText()));
+        values.put(Activities.STATUS_SOURCE, status.getSource());
+        return values;
+    }
+
+
     public static ContentValues createStatusDraft(final ParcelableStatusUpdate status,
                                                   final long[] accountIds) {
         final ContentValues values = new ContentValues();
@@ -474,4 +548,32 @@ public final class ContentValuesCreator implements TwidereConstants {
         return resultList.toArray(new ContentValues[resultList.size()]);
     }
 
+    public static ContentValues makeCachedUserContentValues(final ParcelableUser user) {
+        if (user == null) return null;
+        final ContentValues values = new ContentValues();
+        values.put(CachedUsers.USER_ID, user.id);
+        values.put(CachedUsers.NAME, user.name);
+        values.put(CachedUsers.SCREEN_NAME, user.screen_name);
+        values.put(CachedUsers.PROFILE_IMAGE_URL, user.profile_image_url);
+        values.put(CachedUsers.CREATED_AT, user.created_at);
+        values.put(CachedUsers.IS_PROTECTED, user.is_protected);
+        values.put(CachedUsers.IS_VERIFIED, user.is_verified);
+        values.put(CachedUsers.LISTED_COUNT, user.listed_count);
+        values.put(CachedUsers.FAVORITES_COUNT, user.favorites_count);
+        values.put(CachedUsers.FOLLOWERS_COUNT, user.followers_count);
+        values.put(CachedUsers.FRIENDS_COUNT, user.friends_count);
+        values.put(CachedUsers.STATUSES_COUNT, user.statuses_count);
+        values.put(CachedUsers.LOCATION, user.location);
+        values.put(CachedUsers.DESCRIPTION_PLAIN, user.description_plain);
+        values.put(CachedUsers.DESCRIPTION_HTML, user.description_html);
+        values.put(CachedUsers.DESCRIPTION_EXPANDED, user.description_expanded);
+        values.put(CachedUsers.URL, user.url);
+        values.put(CachedUsers.URL_EXPANDED, user.url_expanded);
+        values.put(CachedUsers.PROFILE_BANNER_URL, user.profile_banner_url);
+        values.put(CachedUsers.IS_FOLLOWING, user.is_following);
+        values.put(CachedUsers.BACKGROUND_COLOR, user.background_color);
+        values.put(CachedUsers.LINK_COLOR, user.link_color);
+        values.put(CachedUsers.TEXT_COLOR, user.text_color);
+        return values;
+    }
 }

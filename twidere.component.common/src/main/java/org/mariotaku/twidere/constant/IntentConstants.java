@@ -37,7 +37,6 @@ public interface IntentConstants {
     String INTENT_ACTION_TWITTER_LOGIN = INTENT_PACKAGE_PREFIX + "TWITTER_LOGIN";
     String INTENT_ACTION_PICK_FILE = INTENT_PACKAGE_PREFIX + "PICK_FILE";
     String INTENT_ACTION_PICK_DIRECTORY = INTENT_PACKAGE_PREFIX + "PICK_DIRECTORY";
-    String INTENT_ACTION_VIEW_WEBPAGE = INTENT_PACKAGE_PREFIX + "VIEW_WEBPAGE";
     String INTENT_ACTION_EXTENSIONS = INTENT_PACKAGE_PREFIX + "EXTENSIONS";
     String INTENT_ACTION_CUSTOM_TABS = INTENT_PACKAGE_PREFIX + "CUSTOM_TABS";
     String INTENT_ACTION_ADD_TAB = INTENT_PACKAGE_PREFIX + "ADD_TAB";
@@ -67,6 +66,7 @@ public interface IntentConstants {
     String INTENT_ACTION_UPDATE_STATUS = INTENT_PACKAGE_PREFIX + "UPDATE_STATUS";
     String INTENT_ACTION_SEND_DIRECT_MESSAGE = INTENT_PACKAGE_PREFIX + "SEND_DIRECT_MESSAGE";
     String INTENT_ACTION_DISCARD_DRAFT = INTENT_PACKAGE_PREFIX + "DISCARD_DRAFT";
+    String INTENT_ACTION_SEND_DRAFT = INTENT_PACKAGE_PREFIX + "SEND_DRAFT";
     String INTENT_ACTION_PICK_ACTIVITY = "org.mariotaku.twidere.PICK_ACTIVITY";
 
     String INTENT_ACTION_PEBBLE_NOTIFICATION = "com.getpebble.action.SEND_NOTIFICATION";
@@ -210,6 +210,7 @@ public interface IntentConstants {
     String EXTRA_MY_FOLLOWING_ONLY = "my_following_only";
     String EXTRA_CHANGED = "changed";
     String EXTRA_NOTIFY_CHANGE = "notify_change";
+    String EXTRA_RESTART_ACTIVITY = "restart_activity";
     String EXTRA_FROM_USER = "from_user";
     String EXTRA_SHOW_MEDIA_PREVIEW = "show_media_preview";
     String EXTRA_SHOW_EXTRA_TYPE = "show_extra_type";
@@ -218,5 +219,6 @@ public interface IntentConstants {
     String EXTRA_DESTINATION = "destination";
     String EXTRA_ACTIVITY_OPTIONS = "activity_options";
     String EXTRA_MAKE_GAP = "make_gap";
+    String EXTRA_QUOTE_ORIGINAL_STATUS = "quote_original_status";
 
 }

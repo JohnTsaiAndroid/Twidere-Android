@@ -35,6 +35,7 @@ public interface TwidereDataStore {
     String TYPE_BOOLEAN_DEFAULT_TRUE = "INTEGER(1) DEFAULT 1";
     String TYPE_BOOLEAN_DEFAULT_FALSE = "INTEGER(1) DEFAULT 0";
     String TYPE_TEXT = "TEXT";
+    String TYPE_DOUBLE_NOT_NULL = "DOUBLE NOT NULL";
     String TYPE_TEXT_NOT_NULL = "TEXT NOT NULL";
     String TYPE_TEXT_NOT_NULL_UNIQUE = "TEXT NOT NULL UNIQUE";
 
@@ -57,7 +58,7 @@ public interface TwidereDataStore {
     Uri[] DIRECT_MESSAGES_URIS = new Uri[]{DirectMessages.Inbox.CONTENT_URI,
             DirectMessages.Outbox.CONTENT_URI};
 
-    public static interface Accounts extends BaseColumns {
+    interface Accounts extends BaseColumns {
 
         String TABLE_NAME = "accounts";
         String CONTENT_PATH = TABLE_NAME;
@@ -147,7 +148,7 @@ public interface TwidereDataStore {
 
     }
 
-    public static interface CachedHashtags extends CachedValues {
+    interface CachedHashtags extends CachedValues {
 
         String[] COLUMNS = {_ID, NAME};
         String[] TYPES = {TYPE_PRIMARY_KEY, TYPE_TEXT};
@@ -158,7 +159,7 @@ public interface TwidereDataStore {
         Uri CONTENT_URI = Uri.withAppendedPath(BASE_CONTENT_URI, CONTENT_PATH);
     }
 
-    public static interface CachedImages extends BaseColumns {
+    interface CachedImages extends BaseColumns {
         String TABLE_NAME = "cached_images";
         String CONTENT_PATH = TABLE_NAME;
 
@@ -173,21 +174,21 @@ public interface TwidereDataStore {
         String[] COLUMNS = {_ID, URL, PATH};
     }
 
-    public static interface CachedStatuses extends Statuses {
+    interface CachedStatuses extends Statuses {
         String TABLE_NAME = "cached_statuses";
         String CONTENT_PATH = TABLE_NAME;
 
         Uri CONTENT_URI = Uri.withAppendedPath(BASE_CONTENT_URI, CONTENT_PATH);
     }
 
-    public static interface CachedTrends extends CachedValues {
+    interface CachedTrends extends CachedValues {
 
         String TIMESTAMP = "timestamp";
 
         String[] COLUMNS = {_ID, NAME, TIMESTAMP};
         String[] TYPES = {TYPE_PRIMARY_KEY, TYPE_TEXT, TYPE_INT};
 
-        public static interface Local extends CachedTrends {
+        interface Local extends CachedTrends {
             String TABLE_NAME = "local_trends";
             String CONTENT_PATH = TABLE_NAME;
 
@@ -197,7 +198,7 @@ public interface TwidereDataStore {
 
     }
 
-    public static interface CachedUsers extends CachedValues {
+    interface CachedUsers extends CachedValues {
 
         String TABLE_NAME = "cached_users";
 
@@ -285,12 +286,12 @@ public interface TwidereDataStore {
 
     }
 
-    public static interface CachedValues extends BaseColumns {
+    interface CachedValues extends BaseColumns {
 
         String NAME = "name";
     }
 
-    public static interface CacheFiles extends BaseColumns {
+    interface CacheFiles extends BaseColumns {
         String TABLE_NAME = "cache_files";
         String CONTENT_PATH = TABLE_NAME;
 
@@ -305,7 +306,7 @@ public interface TwidereDataStore {
         String[] COLUMNS = {_ID, NAME, PATH};
     }
 
-    public static interface DirectMessages extends BaseColumns {
+    interface DirectMessages extends BaseColumns {
 
         String TABLE_NAME = "messages";
         String CONTENT_PATH = TABLE_NAME;
@@ -343,7 +344,7 @@ public interface TwidereDataStore {
 
         String DEFAULT_SORT_ORDER = MESSAGE_ID + " DESC";
 
-        public static interface Conversation extends DirectMessages {
+        interface Conversation extends DirectMessages {
 
             String DEFAULT_SORT_ORDER = MESSAGE_TIMESTAMP + " ASC";
 
@@ -361,7 +362,7 @@ public interface TwidereDataStore {
                     CONTENT_PATH_SEGMENT_SCREEN_NAME);
         }
 
-        public static interface ConversationEntries extends BaseColumns {
+        interface ConversationEntries extends BaseColumns {
 
             String TABLE_NAME = "messages_conversation_entries";
 
@@ -393,7 +394,7 @@ public interface TwidereDataStore {
             int IDX_CONVERSATION_ID = 9;
         }
 
-        public static interface Inbox extends DirectMessages {
+        interface Inbox extends DirectMessages {
 
             String TABLE_NAME = "messages_inbox";
 
@@ -405,7 +406,7 @@ public interface TwidereDataStore {
 
         }
 
-        public static interface Outbox extends DirectMessages {
+        interface Outbox extends DirectMessages {
 
             String TABLE_NAME = "messages_outbox";
 
@@ -419,7 +420,7 @@ public interface TwidereDataStore {
 
     }
 
-    public static interface SearchHistory extends BaseColumns {
+    interface SearchHistory extends BaseColumns {
 
         String TABLE_NAME = "search_history";
         String CONTENT_PATH = TABLE_NAME;
@@ -435,7 +436,7 @@ public interface TwidereDataStore {
         String DEFAULT_SORT_ORDER = RECENT_QUERY + " DESC";
     }
 
-    public static interface DNS extends BaseColumns {
+    interface DNS extends BaseColumns {
         String TABLE_NAME = "dns";
         String CONTENT_PATH = TABLE_NAME;
 
@@ -450,7 +451,7 @@ public interface TwidereDataStore {
         String[] COLUMNS = {_ID, HOST, ADDRESS};
     }
 
-    public static interface SavedSearches extends BaseColumns {
+    interface SavedSearches extends BaseColumns {
 
         String TABLE_NAME = "saved_searches";
 
@@ -471,7 +472,7 @@ public interface TwidereDataStore {
         String DEFAULT_SORT_ORDER = CREATED_AT + " DESC";
     }
 
-    public static interface Drafts extends BaseColumns {
+    interface Drafts extends BaseColumns {
 
         int ACTION_UPDATE_STATUS = 1;
         int ACTION_SEND_DIRECT_MESSAGE = 2;
@@ -480,9 +481,11 @@ public interface TwidereDataStore {
         String TABLE_NAME = "drafts";
         String CONTENT_PATH = TABLE_NAME;
         String CONTENT_PATH_UNSENT = TABLE_NAME + "/unsent";
+        String CONTENT_PATH_NOTIFICATIONS = TABLE_NAME + "/notifications";
 
         Uri CONTENT_URI = Uri.withAppendedPath(BASE_CONTENT_URI, CONTENT_PATH);
         Uri CONTENT_URI_UNSENT = Uri.withAppendedPath(BASE_CONTENT_URI, CONTENT_PATH_UNSENT);
+        Uri CONTENT_URI_NOTIFICATIONS = Uri.withAppendedPath(BASE_CONTENT_URI, CONTENT_PATH_NOTIFICATIONS);
 
         /**
          * Status content.<br>
@@ -518,7 +521,7 @@ public interface TwidereDataStore {
 
     }
 
-    public static interface Filters extends BaseColumns {
+    interface Filters extends BaseColumns {
 
         String CONTENT_PATH = "filters";
 
@@ -536,7 +539,7 @@ public interface TwidereDataStore {
 
         String[] TYPES = {TYPE_PRIMARY_KEY, TYPE_TEXT_NOT_NULL_UNIQUE};
 
-        public static interface Keywords extends Filters {
+        interface Keywords extends Filters {
 
             String TABLE_NAME = "filtered_keywords";
             String CONTENT_PATH_SEGMENT = "keywords";
@@ -544,7 +547,7 @@ public interface TwidereDataStore {
             Uri CONTENT_URI = Uri.withAppendedPath(Filters.CONTENT_URI, CONTENT_PATH_SEGMENT);
         }
 
-        public static interface Links extends Filters {
+        interface Links extends Filters {
 
             String TABLE_NAME = "filtered_links";
             String CONTENT_PATH_SEGMENT = "links";
@@ -552,7 +555,7 @@ public interface TwidereDataStore {
             Uri CONTENT_URI = Uri.withAppendedPath(Filters.CONTENT_URI, CONTENT_PATH_SEGMENT);
         }
 
-        public static interface Sources extends Filters {
+        interface Sources extends Filters {
 
             String TABLE_NAME = "filtered_sources";
             String CONTENT_PATH_SEGMENT = "sources";
@@ -560,7 +563,7 @@ public interface TwidereDataStore {
             Uri CONTENT_URI = Uri.withAppendedPath(Filters.CONTENT_URI, CONTENT_PATH_SEGMENT);
         }
 
-        public static interface Users extends BaseColumns {
+        interface Users extends BaseColumns {
 
             String TABLE_NAME = "filtered_users";
             String CONTENT_PATH_SEGMENT = "users";
@@ -578,7 +581,7 @@ public interface TwidereDataStore {
         }
     }
 
-    public static interface Mentions extends Statuses {
+    interface Mentions extends Statuses {
 
         String TABLE_NAME = "mentions";
         String CONTENT_PATH = TABLE_NAME;
@@ -587,7 +590,7 @@ public interface TwidereDataStore {
 
     }
 
-    public static interface Notifications extends BaseColumns {
+    interface Notifications extends BaseColumns {
 
         String TABLE_NAME = "notifications";
 
@@ -604,7 +607,7 @@ public interface TwidereDataStore {
         String[] COLUMNS = {_ID, ID, COUNT};
     }
 
-    public static interface Permissions extends BaseColumns {
+    interface Permissions extends BaseColumns {
         String TABLE_NAME = "permissions";
         String CONTENT_PATH = TABLE_NAME;
 
@@ -619,7 +622,7 @@ public interface TwidereDataStore {
         String[] COLUMNS = {_ID, PACKAGE_NAME, PERMISSION};
     }
 
-    public static interface Preferences extends BaseColumns {
+    interface Preferences extends BaseColumns {
         String TABLE_NAME = "preferences";
         String CONTENT_PATH = TABLE_NAME;
 
@@ -650,7 +653,7 @@ public interface TwidereDataStore {
         String[] COLUMNS = {_ID, KEY, VALUE, TYPE};
     }
 
-    public static interface Statuses extends BaseColumns {
+    interface Statuses extends BaseColumns {
 
         String TABLE_NAME = "statuses";
         String CONTENT_PATH = TABLE_NAME;
@@ -707,7 +710,6 @@ public interface TwidereDataStore {
         String RETWEET_COUNT = "retweet_count";
         String FAVORITE_COUNT = "favorite_count";
         String REPLY_COUNT = "reply_count";
-        String DESCENDENT_REPLY_COUNT = "descendent_reply_count";
 
         /**
          * Set to an non-zero integer if the status is a retweet, set to
@@ -792,45 +794,77 @@ public interface TwidereDataStore {
 
         String DEFAULT_SORT_ORDER = SORT_ORDER_TIMESTAMP_DESC;
 
-        String QUOTE_ID = "quote_id";
-        String QUOTE_TEXT_HTML = "quote_text_html";
-        String QUOTE_TEXT_PLAIN = "quote_text_plain";
-        String QUOTE_TEXT_UNESCAPED = "quote_text_unescaped";
-        String QUOTE_MEDIA_JSON = "quote_media_json";
-        String QUOTE_TIMESTAMP = "quote_timestamp";
-        String QUOTE_SOURCE = "quote_source";
-        String QUOTED_BY_USER_ID = "quoted_by_user_id";
-        String QUOTED_BY_USER_NAME = "quoted_by_user_name";
-        String QUOTED_BY_USER_SCREEN_NAME = "quoted_by_user_screen_name";
-        String QUOTED_BY_USER_PROFILE_IMAGE = "quoted_by_user_profile_image";
-        String QUOTED_BY_USER_IS_VERIFIED = "quoted_by_user_is_verified";
-        String QUOTED_BY_USER_IS_PROTECTED = "quoted_by_user_is_protected";
+        String QUOTED_ID = "quoted_id";
+        String QUOTED_TEXT_HTML = "quoted_text_html";
+        String QUOTED_TEXT_PLAIN = "quoted_text_plain";
+        String QUOTED_TEXT_UNESCAPED = "quoted_text_unescaped";
+        String QUOTED_MEDIA_JSON = "quoted_media_json";
+        String QUOTED_TIMESTAMP = "quoted_timestamp";
+        String QUOTED_SOURCE = "quoted_source";
+        String QUOTED_USER_ID = "quoted_user_id";
+        String QUOTED_USER_NAME = "quoted_user_name";
+        String QUOTED_USER_SCREEN_NAME = "quoted_user_screen_name";
+        String QUOTED_USER_PROFILE_IMAGE = "quoted_user_profile_image";
+        String QUOTED_USER_IS_VERIFIED = "quoted_user_is_verified";
+        String QUOTED_USER_IS_PROTECTED = "quoted_user_is_protected";
 
         String[] COLUMNS = {_ID, ACCOUNT_ID, STATUS_ID, USER_ID,
                 STATUS_TIMESTAMP, TEXT_HTML, TEXT_PLAIN, TEXT_UNESCAPED, USER_NAME, USER_SCREEN_NAME,
                 USER_PROFILE_IMAGE_URL, IN_REPLY_TO_STATUS_ID, IN_REPLY_TO_USER_ID, IN_REPLY_TO_USER_NAME,
                 IN_REPLY_TO_USER_SCREEN_NAME, SOURCE, LOCATION, RETWEET_COUNT, FAVORITE_COUNT, REPLY_COUNT,
-                DESCENDENT_REPLY_COUNT, RETWEET_ID, RETWEET_TIMESTAMP, RETWEETED_BY_USER_ID,
-                RETWEETED_BY_USER_NAME, RETWEETED_BY_USER_SCREEN_NAME, RETWEETED_BY_USER_PROFILE_IMAGE,
-                QUOTE_ID, QUOTE_TEXT_HTML, QUOTE_TEXT_PLAIN, QUOTE_TEXT_UNESCAPED, QUOTE_TIMESTAMP,
-                QUOTE_SOURCE, QUOTED_BY_USER_ID, QUOTED_BY_USER_NAME, QUOTED_BY_USER_SCREEN_NAME,
-                QUOTED_BY_USER_PROFILE_IMAGE, QUOTED_BY_USER_IS_VERIFIED, QUOTED_BY_USER_IS_PROTECTED,
-                MY_RETWEET_ID, IS_RETWEET, IS_QUOTE, IS_FAVORITE, IS_PROTECTED, IS_VERIFIED, IS_FOLLOWING,
-                IS_GAP, IS_POSSIBLY_SENSITIVE, MEDIA_JSON, MENTIONS_JSON, QUOTE_MEDIA_JSON, CARD_NAME,
-                CARD, PLACE_FULL_NAME};
+                RETWEET_ID, RETWEET_TIMESTAMP, RETWEETED_BY_USER_ID, RETWEETED_BY_USER_NAME,
+                RETWEETED_BY_USER_SCREEN_NAME, RETWEETED_BY_USER_PROFILE_IMAGE, QUOTED_ID, QUOTED_TEXT_HTML,
+                QUOTED_TEXT_PLAIN, QUOTED_TEXT_UNESCAPED, QUOTED_TIMESTAMP, QUOTED_SOURCE, QUOTED_USER_ID,
+                QUOTED_USER_NAME, QUOTED_USER_SCREEN_NAME, QUOTED_USER_PROFILE_IMAGE,
+                QUOTED_USER_IS_VERIFIED, QUOTED_USER_IS_PROTECTED, MY_RETWEET_ID, IS_RETWEET,
+                IS_QUOTE, IS_FAVORITE, IS_PROTECTED, IS_VERIFIED, IS_FOLLOWING, IS_GAP,
+                IS_POSSIBLY_SENSITIVE, MEDIA_JSON, MENTIONS_JSON, QUOTED_MEDIA_JSON, CARD_NAME, CARD,
+                PLACE_FULL_NAME};
 
         String[] TYPES = {TYPE_PRIMARY_KEY, TYPE_INT, TYPE_INT,
                 TYPE_INT, TYPE_INT, TYPE_TEXT, TYPE_TEXT, TYPE_TEXT, TYPE_TEXT, TYPE_TEXT, TYPE_TEXT,
-                TYPE_INT, TYPE_INT, TYPE_TEXT, TYPE_TEXT, TYPE_TEXT, TYPE_TEXT, TYPE_INT, TYPE_INT,
+                TYPE_INT, TYPE_INT, TYPE_TEXT, TYPE_TEXT, TYPE_TEXT, TYPE_TEXT, TYPE_INT,
                 TYPE_INT, TYPE_INT, TYPE_INT, TYPE_INT, TYPE_INT, TYPE_TEXT, TYPE_TEXT,
                 TYPE_TEXT, TYPE_INT, TYPE_TEXT, TYPE_TEXT, TYPE_TEXT, TYPE_INT, TYPE_TEXT, TYPE_INT,
                 TYPE_TEXT, TYPE_TEXT, TYPE_TEXT, TYPE_BOOLEAN, TYPE_BOOLEAN, TYPE_INT, TYPE_BOOLEAN,
                 TYPE_BOOLEAN, TYPE_BOOLEAN, TYPE_BOOLEAN, TYPE_BOOLEAN, TYPE_BOOLEAN, TYPE_BOOLEAN,
-                TYPE_BOOLEAN, TYPE_TEXT, TYPE_TEXT, TYPE_TEXT, TYPE_TEXT, TYPE_TEXT, TYPE_TEXT};
+                TYPE_BOOLEAN, TYPE_TEXT, TYPE_TEXT, TYPE_TEXT, TYPE_TEXT,
+                TYPE_TEXT, TYPE_TEXT};
 
     }
 
-    public static interface Tabs extends BaseColumns {
+    interface Activities extends BaseColumns {
+
+        String ACCOUNT_ID = "account_id";
+        String TIMESTAMP = "timestamp";
+        String STATUS_USER_ID = "status_user_id";
+        String STATUS_RETWEETED_BY_USER_ID = "status_retweeted_by_user_id";
+        String STATUS_QUOTED_USER_ID = "status_quoted_user_id";
+        String STATUS_SOURCE = "status_source";
+        String STATUS_QUOTE_SOURCE = "status_quote_source";
+        String STATUS_TEXT_PLAIN = "status_text_plain";
+        String STATUS_QUOTE_TEXT_PLAIN = "status_quote_text_plain";
+        String STATUS_TEXT_HTML = "status_text_html";
+        String STATUS_QUOTE_TEXT_HTML = "status_quote_text_html";
+        String STATUS_IS_GAP = "status_is_gap";
+        String MIN_POSITION = "min_position";
+        String MAX_POSITION = "max_position";
+        String SOURCES = "sources";
+        String TARGET_STATUSES = "target_statuses";
+        String TARGET_USERS = "target_users";
+        String TARGET_USER_LISTS = "target_user_lists";
+        String TARGET_OBJECT_STATUSES = "target_object_statuses";
+        String TARGET_OBJECT_USER_LISTS = "target_object_user_lists";
+
+        interface AboutMe extends Activities {
+
+            String CONTENT_PATH = "activities_about_me";
+
+            Uri CONTENT_URI = Uri.withAppendedPath(BASE_CONTENT_URI, CONTENT_PATH);
+        }
+    }
+
+    interface Tabs extends BaseColumns {
         String TABLE_NAME = "tabs";
         String CONTENT_PATH = TABLE_NAME;
 
@@ -857,7 +891,7 @@ public interface TwidereDataStore {
         String DEFAULT_SORT_ORDER = POSITION + " ASC";
     }
 
-    public static interface CachedRelationships extends BaseColumns {
+    interface CachedRelationships extends BaseColumns {
 
         String TABLE_NAME = "cached_relationships";
         String CONTENT_PATH = TABLE_NAME;
@@ -878,15 +912,17 @@ public interface TwidereDataStore {
 
         String MUTING = "muting";
 
+        String RETWEET_ENABLED = "retweet_enabled";
+
         String[] COLUMNS = {_ID, ACCOUNT_ID, USER_ID, FOLLOWING, FOLLOWED_BY, BLOCKING,
-                BLOCKED_BY, MUTING};
+                BLOCKED_BY, MUTING, RETWEET_ENABLED};
 
         String[] TYPES = {TYPE_PRIMARY_KEY, TYPE_INT, TYPE_INT, TYPE_BOOLEAN_DEFAULT_FALSE,
                 TYPE_BOOLEAN_DEFAULT_FALSE, TYPE_BOOLEAN_DEFAULT_FALSE, TYPE_BOOLEAN_DEFAULT_FALSE,
-                TYPE_BOOLEAN_DEFAULT_FALSE};
+                TYPE_BOOLEAN_DEFAULT_FALSE, TYPE_BOOLEAN_DEFAULT_TRUE};
     }
 
-    public static interface UnreadCounts extends BaseColumns {
+    interface UnreadCounts extends BaseColumns {
 
         String CONTENT_PATH = "unread_counts";
 
@@ -902,7 +938,7 @@ public interface TwidereDataStore {
 
         String[] COLUMNS = {_ID, TAB_POSITION, TAB_TYPE, COUNT};
 
-        public static interface ByType extends UnreadCounts {
+        interface ByType extends UnreadCounts {
 
             String CONTENT_PATH_SEGMENT = "by_type";
 
@@ -910,5 +946,29 @@ public interface TwidereDataStore {
 
             Uri CONTENT_URI = Uri.withAppendedPath(UnreadCounts.CONTENT_URI, CONTENT_PATH_SEGMENT);
         }
+    }
+
+    interface NetworkUsages extends BaseColumns {
+
+        String TABLE_NAME = "network_usages";
+        String CONTENT_PATH = TABLE_NAME;
+
+        Uri CONTENT_URI = Uri.withAppendedPath(BASE_CONTENT_URI, CONTENT_PATH);
+
+        String TIME_IN_HOURS = "time_in_hours";
+
+        String REQUEST_TYPE = "request_type";
+
+        String REQUEST_NETWORK = "request_network";
+
+        String KILOBYTES_SENT = "kilobytes_sent";
+
+        String KILOBYTES_RECEIVED = "kilobytes_received";
+
+        String[] COLUMNS = {_ID, TIME_IN_HOURS, REQUEST_TYPE, REQUEST_NETWORK, KILOBYTES_SENT,
+                KILOBYTES_RECEIVED};
+
+        String[] TYPES = {TYPE_PRIMARY_KEY, TYPE_INT, TYPE_TEXT_NOT_NULL, TYPE_TEXT_NOT_NULL,
+                TYPE_DOUBLE_NOT_NULL, TYPE_DOUBLE_NOT_NULL};
     }
 }
